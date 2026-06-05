@@ -16,60 +16,40 @@ machine), and pastes the result back in place.
 
 - **Fully local & private** — inference runs in-process via the llama.cpp C API; no
   subprocess, no server, no network.
-- **Menu-bar only** — `LSUIElement`, no Dock icon. Built on classic AppKit
-  (`NSStatusItem`); Settings and History are SwiftUI views hosted in `NSWindow`s.
-- **Global hotkey** via [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts).
-- **Works almost anywhere** — synthetic-clipboard flow (⌘C → fix → ⌘V → restore clipboard).
+- **Self-contained** — the app embeds llama.cpp; no Homebrew/llama install needed at runtime.
+- **Menu-bar only** — `LSUIElement`, no Dock icon. Classic AppKit (`NSStatusItem`); Settings
+  and History are SwiftUI in `NSWindow`s.
+- **Global hotkey** via [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts);
+  synthetic-clipboard flow (⌘C → fix → ⌘V → restore) works almost anywhere.
 - **Model:** `ggml-org/gemma-4-E2B-it-GGUF`, loaded once on demand and kept resident.
 
-## Build & run (local dev)
+## Develop
 
-Requires full **Xcode** (not just Command Line Tools), Homebrew, and the model in the
-Hugging Face cache. The app bundles llama.cpp (see below), so it needs **no** local
-Homebrew `llama.cpp` at runtime.
+Needs full Xcode, plus `cmake`, `xcodegen`, and `llama.cpp` (`brew install cmake xcodegen llama.cpp`).
 
 ```bash
-# 0. One-time setup: point at full Xcode, install tools, download the model once
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-brew install cmake xcodegen llama.cpp   # llama.cpp here is only for `llama-cli` (model fetch)
-llama-cli -hf ggml-org/gemma-4-E2B-it-GGUF   # populates ~/.cache/huggingface
-
-# 1. One-time: build the embedded llama.xcframework (clones + compiles llama.cpp,
-#    a few minutes). This is what frees the app from a local llama install.
-#    Re-run only to bump the llama.cpp version.
+# One-time: build the embedded llama framework, and fetch the model into the HF cache
 ./scripts/build-xcframework.sh
+llama-cli -hf ggml-org/gemma-4-E2B-it-GGUF
 
-# 2. Build the app (xcodegen generate + xcodebuild, signed, → ./Quill.app)
-./build.sh
-open Quill.app
+# Build & run (→ ./Quill.app)
+./build.sh && open Quill.app
 ```
 
-On first run: grant **Accessibility** when prompted (System Settings → Privacy &
-Security → Accessibility) — required for the synthetic ⌘C/⌘V. Then open the menu-bar
-item, **Load model**, set a hotkey in **Settings…**, select some text anywhere, and
-press the hotkey.
+On first hotkey use, grant **Accessibility** when prompted (needed for the synthetic ⌘C/⌘V).
+Then: menu-bar item → **Load model** → set a hotkey in **Settings…** → select text → press it.
 
-> The Xcode project is generated from `project.yml` by XcodeGen — `Quill.xcodeproj` is
-> disposable and gitignored. Edit `project.yml`, never the pbxproj.
+Iterate on the prompt/inference without a full build: `./scripts/test-prompt.sh`.
 
-## llama.cpp linkage
+## How it fits together
 
-The app embeds **`Frameworks/llama.xcframework`** (built by `scripts/build-xcframework.sh`)
-as an Embed & Sign dependency, so the shipped `Quill.app` is self-contained — `libllama`
-lives in `Contents/Frameworks` and there's no dependency on a local Homebrew install.
-`import llama` resolves to the framework's own module. The framework is a build
-prerequisite and is **not** committed (gitignored, large); `build.sh` errors with the
-build command if it's missing.
-
-The framework is pinned to llama.cpp **`b9290`** (`LLAMA_CPP_REF` in the script), the
-release the C API in `LlamaContext.swift` targets — bump it deliberately.
-
-> The standalone test harness (`scripts/test-prompt.sh`) still compiles against Homebrew
-> `libllama` via `Vendor/llama/module.modulemap` for fast iteration — that's dev-only and
-> independent of the app's embedded framework.
+- **`project.yml` → XcodeGen → `Quill.xcodeproj`** (gitignored, disposable — edit `project.yml`).
+- **`Frameworks/llama.xcframework`** is embedded (Embed & Sign), so `Quill.app` is self-contained.
+  It's a one-time build artifact, gitignored; `build.sh` errors if it's missing. Pinned to llama.cpp
+  `b9290` (the C API `LlamaContext.swift` targets).
+- See `CLAUDE.md` for the non-obvious gotchas (signing/TCC, the prompt design, build internals).
 
 ## Notes
 
 - The exit-time `SIGABRT` from ggml/Metal static teardown is benign (only at quit).
 - Password / secure-input fields swallow synthetic keystrokes — expected limitation.
-</content>
