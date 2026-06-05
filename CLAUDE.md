@@ -87,13 +87,15 @@ telling the user to run that command. Loading is on-demand (menu) and stays resi
   starts, `i`/`i'll`/`i'm` → `I`/`I'll`/`I'm`) with **minimal changes / no rephrasing**, and preserves
   Markdown, code, code comments, URLs, paths, @-mentions, emails, symbols, and emoji. It must say
   **"reply with only the corrected text, do not repeat the original"** — load-bearing wording.
-- **The user turn wraps the text in a passive `Text to proofread:` label** (`PromptBuilder.userPrompt`).
-  This is the real behavior dial and is load-bearing/non-obvious: **with** it, long text and Markdown
-  are handled safely but the model under-corrects rare ultra-short fragments; **without** it, short
-  fragments get fixed but long/Markdown inputs derail (e.g. a paragraph → `"The model"`). The anchor is
-  kept because the app proofreads *selected prose* (the paragraph case dominates). Tried and *worse*,
-  do not re-add: a one-shot example, a `Corrected:` cue, or an **imperative** anchor ("Correct this
-  text:" reads as a chat request → conversational derail).
+- **The user turn applies a passive `Text to proofread:` label CONDITIONALLY by length**
+  (`PromptBuilder.userPrompt`). This anchor is the real behavior dial and is load-bearing/non-obvious:
+  **with** it, long/Markdown input is safe but the model under-corrects SHORT input (won't even
+  capitalize `hi my name is yoni`); **without** it, short input gets fixed (`→ Hi, my name is Yoni.`)
+  but long/Markdown input derails (a paragraph → `"The model"`). So: **≤7 words → no anchor**
+  (realistic greetings/fragments get corrected); **longer → anchor** (paragraphs stay safe). The rare
+  degenerate short input (a merged non-word like `himy…`, or a question) that derails without the
+  anchor is caught by `finalize`. Tried and *worse*, do not re-add: a one-shot example, a `Corrected:`
+  cue, or an **imperative** anchor ("Correct this text:" reads as a chat request → conversational derail).
 - **`PromptBuilder.finalize(output:original:)` is a fail-safe, applied by both the app and the harness.**
   The small greedy model can still derail on *degenerate* inputs; `finalize` discards such output and
   returns the user's original text unchanged — the app must **never paste model chatter** in place of a

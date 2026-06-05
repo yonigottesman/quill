@@ -33,6 +33,12 @@ struct TestPrompt {
             TestCase("the quaterly reprot is due monday and the metrics looks wrong."),
             TestCase("can you reveiw my PR befor the standup tommorrow pls."),
 
+            // --- merged words / names / greetings ---
+            TestCase("himy name is yoni"),
+            TestCase("hi my name is yoni"),
+            TestCase("helloworld this is a testfor you"),
+            TestCase("whats up how are you"),
+
             // --- capitalization (sentence start, "I" and its contractions) ---
             TestCase("i think i'll go home now becuase i'm tired."),
             TestCase("we shipped it. i'll monitor the erors and let you know."),

@@ -38,15 +38,28 @@ enum PromptBuilder {
 
     /// The user turn: the text to proofread, under a passive data-label so the
     /// model treats it as content to fix rather than a message to answer.
-    static func userPrompt(text: String) -> String { "Text to proofread:\n\(text)" }
+    static func userPrompt(text: String) -> String {
+        // Length-conditional anchor. The passive label keeps long/multi-sentence
+        // and Markdown input safe (no truncation/identity derail) but makes the
+        // model too conservative to fix SHORT input. So: short input → no anchor
+        // (realistic greetings/fragments get corrected, e.g. "hi my name is yoni"
+        // → "Hi, my name is Yoni."); longer input → anchor. `finalize` cleans up
+        // the rare short-input derail.
+        let words = text.split(whereSeparator: \.isWhitespace).count
+        return words <= 7 ? text : "Text to proofread:\n\(text)"
+    }
 
     /// Assistant self-chatter the small E2B model emits when it derails on a
     /// degenerate input (a bare word, a lone comment) instead of proofreading.
     /// Matched case-insensitively as a substring.
     private static let derailMarkers = [
+        // identity / self-reference
         "i am gemma", "large language model", "language model developed",
-        "ready to help", "happy to help", "proofreading needs",
-        "ready for the next", "this is a model", "the model is a",
+        "this is a model", "the model is", "is a model", "name is model",
+        // assistant chit-chat (the model answering instead of proofreading)
+        "ready to help", "happy to help", "ready to assist", "proofreading needs",
+        "ready for the next", "how about you", "how can i help", "how may i help",
+        "i'm doing well", "doing well, thank",
     ]
 
     /// Fail-safe applied to the model's raw output. The app must never paste
