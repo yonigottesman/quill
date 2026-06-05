@@ -6,6 +6,7 @@ import Foundation
 final class InferenceService: ObservableObject {
     enum State: Equatable {
         case notLoaded
+        case downloading(Double)   // 0...1 fraction
         case loading
         case loaded
         case failed(String)
@@ -22,14 +23,26 @@ final class InferenceService: ObservableObject {
 
     private var llama: LlamaContext?
 
+    /// Downloads the model if needed, then loads it. The state walks
+    /// `.downloading(progress)` → `.loading` → `.loaded` so the menu reflects
+    /// each phase. Re-entrant calls while already busy are ignored.
     func loadModel() {
         switch state {
-        case .loading, .loaded: return
+        case .downloading, .loading, .loaded: return
         case .notLoaded, .failed: break
         }
-        state = .loading
         Task {
             do {
+                // Fetch into the HF cache first if the weights aren't there yet.
+                // Already-present blobs are reused, not re-downloaded.
+                if !ModelLocator.isDownloaded {
+                    state = .downloading(0)
+                    try await ModelLocator.download { [weak self] fraction in
+                        self?.state = .downloading(fraction)
+                    }
+                }
+
+                state = .loading
                 let path = try ModelLocator.resolveGGUF()
                 modelPath = path
                 // Heavy multi-second load — keep it off the main actor.

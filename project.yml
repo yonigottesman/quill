@@ -9,6 +9,11 @@ packages:
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
     from: "2.0.0"
+  # Official Hugging Face Swift client — downloads the GGUF into the standard HF
+  # cache (the same cache ModelLocator reads) with progress reporting.
+  HuggingFace:
+    url: https://github.com/huggingface/swift-huggingface
+    from: "0.9.0"
 
 settings:
   base:
@@ -33,6 +38,7 @@ targets:
       - path: Quill
     dependencies:
       - package: KeyboardShortcuts
+      - package: HuggingFace
       # Self-contained llama.cpp — embedded so the app does NOT need a local
       # Homebrew install. Produce it once with: scripts/build-xcframework.sh
       - framework: Frameworks/llama.xcframework
