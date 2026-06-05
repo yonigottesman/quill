@@ -74,16 +74,33 @@ telling the user to run that command. Loading is on-demand (menu) and stays resi
 - **Sampling is greedy** (`llama_sampler_init_greedy` in `LlamaContext`). Grammar/typo fixing is a
   deterministic task; greedy corrects misspellings more confidently than low-temp sampling and gives
   stable, repeatable output. (Switching temperature was tried — it was *not* the fix.)
-- The base prompt is a proofreader instruction that explicitly says **"reply with only the single
-  corrected version, do not repeat the original."** This wording is load-bearing: without it the small
-  E2B model **echoes the original then the correction on short fragments** (e.g. `sure no promblem` →
-  original + fix, or leaves the typo). Full sentences were always fine; short fragments exposed it.
-- **Validate any prompt/sampler change with `./scripts/test-prompt.sh`** — it compiles a standalone
-  `@main` harness (`scripts/test-prompt.swift`) against Homebrew libllama and runs typo texts +
-  additional-instruction cases through the real `PromptBuilder`/`LlamaContext`. It keeps the
-  previously-failing fragments as regression cases. Gotcha baked in: it ends with
-  `fflush(stdout); _exit(0)` — `_exit` skips the benign teardown SIGABRT but also skips stdio flush,
-  so the `fflush` is required or you get no output.
+- The base prompt is a proofreader instruction. It fixes spelling/grammar **and capitalization**
+  (sentence starts, `i`/`i'll`/`i'm` → `I`/`I'll`/`I'm`) with **minimal changes / no rephrasing**, and
+  preserves Markdown, code, code comments, URLs, paths, @-mentions, emails, symbols, and emoji. It must
+  say **"reply with only the corrected text, do not repeat the original"** — load-bearing wording;
+  without it the E2B model echoes the original + correction on short fragments.
+- **The input is anchored with a passive `Text to proofread:` label in `PromptBuilder.build`.** This is
+  load-bearing and non-obvious: bare/odd inputs (a single word, text with @-mentions) otherwise derail
+  the small model into a canned **"I am Gemma…"** identity reply. Things that were tried and made it
+  *worse*, do not re-add: a one-shot example (model hallucinated/echoed the example), a `Corrected:`
+  output cue (same), and an **imperative** anchor like "Correct this text:" (reads as a chat request →
+  conversational derail). Only the passive data-label works.
+- **`PromptBuilder.finalize(output:original:)` is a fail-safe, applied by both the app and the harness.**
+  A 2B greedy model still derails on *degenerate* inputs (a lone word, a bare `/* comment */`, a
+  Markdown skeleton). `finalize` discards such output and returns the user's original text unchanged —
+  the app must **never paste model chatter** in place of a selection. It catches three signatures:
+  assistant self-reference markers, a ≤3-word input that explodes into a much longer output, and a
+  multi-line input flattened to one line. A missed typo on a fragment is the accepted cost.
+- **Sampling is greedy** (`llama_sampler_init_greedy` in `LlamaContext`) for stable, repeatable output —
+  also what makes the harness a reliable pass/fail check. (Temperature was tried for the echo issue and
+  was *not* the fix; the derails are fixed by the anchor + `finalize`, not sampling.)
+- **Validate any prompt/guard change with `./scripts/test-prompt.sh`** — it compiles a standalone
+  `@main` harness (`scripts/test-prompt.swift`) against Homebrew libllama and runs ~45 cases (short
+  fragments, paragraphs that must not drop content, capitalization, Markdown/code/comment/special-char
+  preservation, additional-instruction cases, and derail-bait) through the real
+  `PromptBuilder`/`LlamaContext`, applying `finalize` exactly like the app. Gotcha baked in: it ends
+  with `fflush(stdout); _exit(0)` — `_exit` skips the benign teardown SIGABRT but also skips stdio
+  flush, so the `fflush` is required or you get no output.
 
 ## App icon
 

@@ -57,7 +57,8 @@ final class InferenceService: ObservableObject {
     func fixGrammar(_ text: String) async -> String? {
         guard let llama, state == .loaded else { return nil }
         let prompt = PromptBuilder.build(text: text, additionalInstructions: additionalInstructions)
-        let result = await llama.generate(prompt: prompt)
+        let raw = await llama.generate(prompt: prompt)
+        let result = PromptBuilder.finalize(output: raw, original: text)
         return result.isEmpty ? nil : result
     }
 }
