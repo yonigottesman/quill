@@ -48,8 +48,13 @@ Inference is **in-process** via the llama.cpp C API (`import llama`), not a serv
 - **The framework is a build prerequisite, not committed** (it's large; gitignored under
   `Frameworks/`). Produce it once with `scripts/build-xcframework.sh` before the first build —
   `build.sh` hard-errors with that instruction if it's missing. The script clones llama.cpp
-  (sibling `../llama.cpp`), checks out a pinned tag, and builds an arm64 `LLAMA_BUILD_FRAMEWORK`
-  release with Metal embedded.
+  (sibling `../llama.cpp`), checks out the pinned tag, then **delegates to llama.cpp's own
+  `build-xcframework.sh`**, programmatically trimmed to macOS only. (There is **no**
+  `LLAMA_BUILD_FRAMEWORK` cmake option — an earlier version of our script assumed one; it was
+  silently ignored and produced loose dylibs. Upstream's script statically links ggml + llama into
+  one framework binary with Metal embedded.) Upstream targets seven Apple platforms incl. visionOS,
+  whose SDK isn't always installed — hence the macOS-only trim. The result is a universal
+  (arm64+x86_64) `llama.framework`; `import llama` resolves to its bundled `framework module llama`.
 - **Pinned to llama.cpp `b9290`** (= Homebrew's `llama.cpp 9290`) via `LLAMA_CPP_REF` in
   `build-xcframework.sh`, because the C API in `LlamaContext.swift` was written against that
   release's symbols (`llama_model_load_from_file`, `llama_init_from_model`,
