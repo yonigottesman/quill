@@ -1,0 +1,51 @@
+name: Quill
+options:
+  bundleIdPrefix: com.yonigo
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+
+packages:
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: "2.0.0"
+
+settings:
+  base:
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+    SWIFT_VERSION: "5.0"          # Swift 5 language mode for a friction-free first build; tighten to 6 later
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Sign with the stable Developer ID identity (not ad-hoc) so macOS keeps the
+    # Accessibility/TCC grant across rebuilds. Hardened runtime stays off until
+    # we do notarization (later).
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: "29HD5Q85D4"
+    ENABLE_HARDENED_RUNTIME: NO
+
+targets:
+  Quill:
+    type: application
+    platform: macOS
+    sources:
+      - path: Quill
+    dependencies:
+      - package: KeyboardShortcuts
+    info:
+      path: Quill/Info.plist
+      properties:
+        LSUIElement: true         # menu-bar only, no Dock icon
+        CFBundleDisplayName: Quill
+        CFBundleIconFile: Quill   # Quill.icns (Finder/Spotlight icon)
+        LSMinimumSystemVersion: "15.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yonigo.Quill
+        # --- llama.cpp linkage (Homebrew bootstrap; swap for embedded xcframework before distribution) ---
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/Vendor/llama
+        HEADER_SEARCH_PATHS: /opt/homebrew/include
+        LIBRARY_SEARCH_PATHS: /opt/homebrew/lib
+        OTHER_LDFLAGS: -lllama
+        LD_RUNPATH_SEARCH_PATHS: /opt/homebrew/lib

@@ -1,0 +1,14 @@
+// Bootstrap module so Swift can `import llama` against the Homebrew-installed
+// llama.cpp (/opt/homebrew). This lets us build & run during local development
+// without first producing llama.xcframework.
+//
+// To switch to the self-contained, distributable embedded framework later:
+//   1. Build Frameworks/llama.xcframework (see plan Phase 1).
+//   2. Remove SWIFT_INCLUDE_PATHS / HEADER_SEARCH_PATHS / LIBRARY_SEARCH_PATHS /
+//      OTHER_LDFLAGS=-lllama from project.yml.
+//   3. Add the xcframework as an "Embed & Sign" dependency.
+// The Swift source does not change — `import llama` resolves either way.
+module llama [system] {
+    header "/opt/homebrew/include/llama.h"
+    export *
+}
