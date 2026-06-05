@@ -40,17 +40,25 @@ The app is signed with **Developer ID Application (team 29HD5Q85D4)**, set in `p
 
 Inference is **in-process** via the llama.cpp C API (`import llama`), not a server/subprocess.
 
-- Currently linked against **Homebrew's libllama** (`/opt/homebrew`) through
-  `Vendor/llama/module.modulemap` — see the `SWIFT_INCLUDE_PATHS` / `-lllama` settings in
-  `project.yml`. This is a **dev bootstrap and is not distributable** (absolute paths to
-  `/opt/homebrew`).
-- To ship a self-contained app: run `scripts/build-xcframework.sh` to produce
-  `Frameworks/llama.xcframework`, then drop the Homebrew search-path/`-lllama` settings and embed the
-  xcframework. The Swift code doesn't change.
-- The C API was pinned against the symbols in the Homebrew `llama.h` at build time
-  (`llama_model_load_from_file`, `llama_init_from_model`, `llama_model_chat_template` +
-  `llama_chat_apply_template`, `llama_memory_clear`/`llama_get_memory`, etc.). If a Homebrew upgrade
-  changes the API, `LlamaContext.swift` is where it breaks.
+- **The app embeds `Frameworks/llama.xcframework` — it does NOT depend on a local Homebrew
+  llama install.** `project.yml` declares the xcframework as an Embed & Sign dependency, and
+  `import llama` resolves to the framework's own bundled module map. The built `Quill.app`
+  carries `libllama` inside `Contents/Frameworks` (found at runtime via the
+  `@executable_path/../Frameworks` rpath).
+- **The framework is a build prerequisite, not committed** (it's large; gitignored under
+  `Frameworks/`). Produce it once with `scripts/build-xcframework.sh` before the first build —
+  `build.sh` hard-errors with that instruction if it's missing. The script clones llama.cpp
+  (sibling `../llama.cpp`), checks out a pinned tag, and builds an arm64 `LLAMA_BUILD_FRAMEWORK`
+  release with Metal embedded.
+- **Pinned to llama.cpp `b9290`** (= Homebrew's `llama.cpp 9290`) via `LLAMA_CPP_REF` in
+  `build-xcframework.sh`, because the C API in `LlamaContext.swift` was written against that
+  release's symbols (`llama_model_load_from_file`, `llama_init_from_model`,
+  `llama_model_chat_template` + `llama_chat_apply_template`, `llama_memory_clear`/
+  `llama_get_memory`, etc.). Bumping the ref to a release with a changed API is where
+  `LlamaContext.swift` breaks.
+- **The test harness still uses Homebrew.** `scripts/test-prompt.sh` compiles the inference
+  code directly against `/opt/homebrew` libllama via `Vendor/llama/module.modulemap` for fast
+  iteration — that module map is now test-harness-only, the app no longer references it.
 
 ## Model
 
@@ -59,14 +67,40 @@ Inference is **in-process** via the llama.cpp C API (`import llama`), not a serv
 `llama-cli -hf ggml-org/gemma-4-E2B-it-GGUF`. Missing model → `state = .failed` with a message
 telling the user to run that command. Loading is on-demand (menu) and stays resident; Unload frees it.
 
+## Prompt, sampling & the test harness
+
+- The prompt is built by `PromptBuilder` — **shared by the app and the test harness so they can't
+  drift**. `InferenceService` appends the Settings "additional instructions" on top (omitted if empty).
+- **Sampling is greedy** (`llama_sampler_init_greedy` in `LlamaContext`). Grammar/typo fixing is a
+  deterministic task; greedy corrects misspellings more confidently than low-temp sampling and gives
+  stable, repeatable output. (Switching temperature was tried — it was *not* the fix.)
+- The base prompt is a proofreader instruction that explicitly says **"reply with only the single
+  corrected version, do not repeat the original."** This wording is load-bearing: without it the small
+  E2B model **echoes the original then the correction on short fragments** (e.g. `sure no promblem` →
+  original + fix, or leaves the typo). Full sentences were always fine; short fragments exposed it.
+- **Validate any prompt/sampler change with `./scripts/test-prompt.sh`** — it compiles a standalone
+  `@main` harness (`scripts/test-prompt.swift`) against Homebrew libllama and runs typo texts +
+  additional-instruction cases through the real `PromptBuilder`/`LlamaContext`. It keeps the
+  previously-failing fragments as regression cases. Gotcha baked in: it ends with
+  `fflush(stdout); _exit(0)` — `_exit` skips the benign teardown SIGABRT but also skips stdio flush,
+  so the `fflush` is required or you get no output.
+
+## App icon
+
+`scripts/make-icon.sh` renders the menu-bar `pencil.line` symbol (white on an indigo gradient) →
+`Quill/Quill.icns` (committed; bundled via `CFBundleIconFile` in `project.yml`). Re-run only to change
+the icon. The app is `LSUIElement`, so this is the Finder/Spotlight icon — there is no Dock icon.
+
 ## Architecture notes / gotchas
 
 - **Entry point is classic AppKit** (`main.swift` → `NSApplication` + `AppDelegate`), not a SwiftUI
   `@main App`. The menu bar uses **`NSStatusItem`**, not SwiftUI `MenuBarExtra` — the SwiftUI
   menu-bar/lifecycle path did not render reliably under `LSUIElement` on this macOS. Settings/History
-  are SwiftUI views hosted in plain `NSWindow`s via `NSHostingController`.
-- A SwiftUI `Form` in a bare `NSWindow` **collapses to ~zero height** unless given an explicit
-  `.frame(height:)` — that's why window content sizes are set explicitly.
+  are SwiftUI views hosted in plain `NSWindow`s.
+- A SwiftUI `Form` hosted via `NSWindow(contentViewController:) + setContentSize` **intermittently
+  collapses to just the title bar**. The Settings window dodges this with the `makeWindow` helper in
+  `AppDelegate` (explicit `contentRect` + an `NSHostingView` with autoresizing) — use it for any new
+  window rather than `contentViewController`.
 - The exit-time `SIGABRT` from ggml/Metal static teardown is **benign** (only at process quit).
 - KeyboardShortcuts does **not** block system-reserved combos — e.g. setting ⌘⌃Q hijacks Lock Screen.
   The chosen shortcut lives in `defaults read com.yonigo.Quill`.

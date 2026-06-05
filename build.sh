@@ -8,6 +8,14 @@ cd "$(dirname "$0")"
 # with the same bundle id instead of launching the new build.
 pkill -9 -f Quill 2>/dev/null || true
 
+# The app embeds llama.cpp via Frameworks/llama.xcframework (so it needs no local
+# Homebrew install). It's a one-time, multi-minute build — produce it first.
+if [ ! -d Frameworks/llama.xcframework ]; then
+  echo "error: Frameworks/llama.xcframework is missing." >&2
+  echo "       Build it once (needs full Xcode + cmake):  ./scripts/build-xcframework.sh" >&2
+  exit 1
+fi
+
 xcodegen generate >/dev/null
 
 set -o pipefail

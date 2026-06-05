@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-# Builds a self-contained macOS (arm64) llama.xcframework for distribution and
-# drops it at Frameworks/llama.xcframework. Run this when you want to stop using
-# the Homebrew bootstrap linkage. Requires full Xcode + cmake.
+# Builds a self-contained macOS (arm64) llama.xcframework and drops it at
+# Frameworks/llama.xcframework. This is what makes the app independent of a local
+# Homebrew llama.cpp install — the framework is embedded in Quill.app. Run this
+# ONCE before the first build (and again to bump the llama.cpp version). Requires
+# full Xcode + cmake.
 #
-# After running, edit project.yml: remove SWIFT_INCLUDE_PATHS / HEADER_SEARCH_PATHS /
-# LIBRARY_SEARCH_PATHS / OTHER_LDFLAGS / LD_RUNPATH_SEARCH_PATHS from the Quill target,
-# add the xcframework as an Embed & Sign dependency, then `xcodegen generate`.
+# The project (project.yml) already embeds Frameworks/llama.xcframework, so no
+# further edits are needed after running this — just ./build.sh.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LLAMA_DIR="${LLAMA_CPP_DIR:-$REPO_ROOT/../llama.cpp}"
 OUT="$REPO_ROOT/Frameworks/llama.xcframework"
+
+# Pin to the llama.cpp release the Swift C API in LlamaContext.swift was written
+# against (matches Homebrew's `llama.cpp 9290`). Building HEAD instead risks C API
+# drift that breaks LlamaContext.swift. Override with LLAMA_CPP_REF=master to track HEAD.
+LLAMA_CPP_REF="${LLAMA_CPP_REF:-b9290}"
 
 if ! xcodebuild -version >/dev/null 2>&1; then
   echo "error: full Xcode required. Run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer" >&2
@@ -23,6 +29,9 @@ if [ ! -d "$LLAMA_DIR" ]; then
 fi
 
 cd "$LLAMA_DIR"
+echo "Checking out llama.cpp $LLAMA_CPP_REF ..."
+git fetch --tags --quiet origin
+git checkout --quiet "$LLAMA_CPP_REF"
 cmake -B build-macos -G Xcode \
   -DCMAKE_OSX_ARCHITECTURES=arm64 \
   -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \

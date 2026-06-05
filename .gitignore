@@ -8,6 +8,10 @@ DerivedData/
 .scratch/
 Quill.app/
 
+# Embedded llama.cpp framework — large binary artifact, reproduced via
+# scripts/build-xcframework.sh (run once before building). Not committed.
+Frameworks/
+
 # llama.cpp clone (kept outside repo; rebuild via README)
 llama.cpp/
 

@@ -25,15 +25,21 @@ machine), and pastes the result back in place.
 ## Build & run (local dev)
 
 Requires full **Xcode** (not just Command Line Tools), Homebrew, and the model in the
-Hugging Face cache.
+Hugging Face cache. The app bundles llama.cpp (see below), so it needs **no** local
+Homebrew `llama.cpp` at runtime.
 
 ```bash
 # 0. One-time setup: point at full Xcode, install tools, download the model once
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-brew install cmake xcodegen llama.cpp
+brew install cmake xcodegen llama.cpp   # llama.cpp here is only for `llama-cli` (model fetch)
 llama-cli -hf ggml-org/gemma-4-E2B-it-GGUF   # populates ~/.cache/huggingface
 
-# 1. Build (xcodegen generate + xcodebuild, signed, → ./Quill.app)
+# 1. One-time: build the embedded llama.xcframework (clones + compiles llama.cpp,
+#    a few minutes). This is what frees the app from a local llama install.
+#    Re-run only to bump the llama.cpp version.
+./scripts/build-xcframework.sh
+
+# 2. Build the app (xcodegen generate + xcodebuild, signed, → ./Quill.app)
 ./build.sh
 open Quill.app
 ```
@@ -48,12 +54,19 @@ press the hotkey.
 
 ## llama.cpp linkage
 
-For fast local dev, Quill links Homebrew's `libllama` (`/opt/homebrew`) via a module
-map (`Vendor/llama/module.modulemap`). This is **not** distributable (absolute paths).
+The app embeds **`Frameworks/llama.xcframework`** (built by `scripts/build-xcframework.sh`)
+as an Embed & Sign dependency, so the shipped `Quill.app` is self-contained — `libllama`
+lives in `Contents/Frameworks` and there's no dependency on a local Homebrew install.
+`import llama` resolves to the framework's own module. The framework is a build
+prerequisite and is **not** committed (gitignored, large); `build.sh` errors with the
+build command if it's missing.
 
-To produce a self-contained app, run `scripts/build-xcframework.sh` to build a macOS
-`llama.xcframework`, embed it, then drop the Homebrew search-path / `-lllama` settings
-from `project.yml`. The Swift code doesn't change.
+The framework is pinned to llama.cpp **`b9290`** (`LLAMA_CPP_REF` in the script), the
+release the C API in `LlamaContext.swift` targets — bump it deliberately.
+
+> The standalone test harness (`scripts/test-prompt.sh`) still compiles against Homebrew
+> `libllama` via `Vendor/llama/module.modulemap` for fast iteration — that's dev-only and
+> independent of the app's embedded framework.
 
 ## Notes
 

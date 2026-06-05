@@ -33,6 +33,11 @@ targets:
       - path: Quill
     dependencies:
       - package: KeyboardShortcuts
+      # Self-contained llama.cpp — embedded so the app does NOT need a local
+      # Homebrew install. Produce it once with: scripts/build-xcframework.sh
+      - framework: Frameworks/llama.xcframework
+        embed: true
+        codeSign: true
     info:
       path: Quill/Info.plist
       properties:
@@ -43,9 +48,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yonigo.Quill
-        # --- llama.cpp linkage (Homebrew bootstrap; swap for embedded xcframework before distribution) ---
-        SWIFT_INCLUDE_PATHS: $(SRCROOT)/Vendor/llama
-        HEADER_SEARCH_PATHS: /opt/homebrew/include
-        LIBRARY_SEARCH_PATHS: /opt/homebrew/lib
-        OTHER_LDFLAGS: -lllama
-        LD_RUNPATH_SEARCH_PATHS: /opt/homebrew/lib
+        # --- llama.cpp linkage (embedded, self-contained — no Homebrew dependency) ---
+        # The `llama` Swift module and its dylib come from the embedded
+        # Frameworks/llama.xcframework (the dependency above). `import llama`
+        # resolves to the framework's own module map. This rpath lets the app
+        # find the embedded framework at runtime inside the .app bundle.
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
