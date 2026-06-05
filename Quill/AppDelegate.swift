@@ -48,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch appState.inference.state {
         case .notLoaded:
             add(menu, "Load model", #selector(loadModel))
+        case .downloading(let fraction):
+            add(menu, "Downloading model… \(Int(fraction * 100))%", nil)
         case .loading:
             add(menu, "Loading model…", nil)
         case .loaded:
