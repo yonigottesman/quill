@@ -97,8 +97,8 @@ struct TestPrompt {
 
         let ctx = try LlamaContext.create(modelPath: path)
         for c in cases {
-            let prompt = PromptBuilder.build(text: c.text, additionalInstructions: c.additional)
-            let raw = await ctx.generate(prompt: prompt)
+            let system = PromptBuilder.systemPrompt(additionalInstructions: c.additional)
+            let raw = await ctx.generate(system: system, user: PromptBuilder.userPrompt(text: c.text))
             let out = PromptBuilder.finalize(output: raw, original: c.text) // same fail-safe as the app
             print("────────────────────────────────────────")
             print("INPUT:      \(c.text)")

@@ -80,8 +80,8 @@ actor LlamaContext {
 
     /// Runs one completion for `userContent` (wrapped in the Gemma chat template)
     /// and returns the cleaned model output.
-    func generate(prompt userContent: String, maxTokens: Int = 1024) -> String {
-        let templated = applyChatTemplate(userContent: userContent)
+    func generate(system: String, user: String, maxTokens: Int = 1024) -> String {
+        let templated = applyChatTemplate(system: system, user: user)
         let tokens = tokenize(templated, addSpecial: true)
         guard !tokens.isEmpty else { return "" }
 
@@ -117,28 +117,39 @@ actor LlamaContext {
 
     // MARK: - Chat template
 
-    private func applyChatTemplate(userContent: String) -> String {
+    private func applyChatTemplate(system: String, user: String) -> String {
         guard let tmpl = llama_model_chat_template(model, nil) else {
-            return hardcodedGemmaTemplate(userContent)
+            return hardcodedGemmaTemplate(system: system, user: user)
         }
-        return userContent.withCString { contentPtr in
-            "user".withCString { rolePtr -> String in
-                var message = llama_chat_message(role: rolePtr, content: contentPtr)
-                var buffer = [CChar](repeating: 0, count: userContent.utf8.count + 256)
-                var needed = llama_chat_apply_template(tmpl, &message, 1, true, &buffer, Int32(buffer.count))
-                if needed > Int32(buffer.count) {
-                    buffer = [CChar](repeating: 0, count: Int(needed))
-                    needed = llama_chat_apply_template(tmpl, &message, 1, true, &buffer, Int32(buffer.count))
-                }
-                guard needed > 0 else { return hardcodedGemmaTemplate(userContent) }
-                let utf8 = buffer.prefix(Int(needed)).map { UInt8(bitPattern: $0) }
-                return String(decoding: utf8, as: UTF8.self)
-            }
+        // strdup gives stable C pointers for the duration of the call; the C API
+        // keeps no reference past it. The gemma-4 template renders a real system
+        // turn when messages[0].role == "system".
+        let parts = [("system", system), ("user", user)]
+        var allocations: [UnsafeMutablePointer<CChar>] = []
+        defer { allocations.forEach { free($0) } }
+        var messages: [llama_chat_message] = parts.map { role, content in
+            let r = strdup(role)!, c = strdup(content)!
+            allocations.append(r); allocations.append(c)
+            return llama_chat_message(role: r, content: c)
         }
+
+        let count = messages.count
+        var buffer = [CChar](repeating: 0, count: system.utf8.count + user.utf8.count + 512)
+        var needed = llama_chat_apply_template(tmpl, &messages, count, true, &buffer, Int32(buffer.count))
+        if needed > Int32(buffer.count) {
+            buffer = [CChar](repeating: 0, count: Int(needed))
+            needed = llama_chat_apply_template(tmpl, &messages, count, true, &buffer, Int32(buffer.count))
+        }
+        guard needed > 0 else { return hardcodedGemmaTemplate(system: system, user: user) }
+        let utf8 = buffer.prefix(Int(needed)).map { UInt8(bitPattern: $0) }
+        return String(decoding: utf8, as: UTF8.self)
     }
 
-    private func hardcodedGemmaTemplate(_ content: String) -> String {
-        "<start_of_turn>user\n\(content)<end_of_turn>\n<start_of_turn>model\n"
+    /// Fallback only if the model ships no chat template (it does). Folds the
+    /// system text into the user turn since the classic Gemma markers have no
+    /// system role.
+    private func hardcodedGemmaTemplate(system: String, user: String) -> String {
+        "<start_of_turn>user\n\(system)\n\n\(user)<end_of_turn>\n<start_of_turn>model\n"
     }
 
     /// Drops a leading `<think>…</think>` block and stray turn markers, then trims.

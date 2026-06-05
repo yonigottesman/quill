@@ -1,15 +1,12 @@
 import Foundation
 
-/// Builds the user-turn prompt. Shared by the app and the test harness so they
-/// never drift. The Gemma chat template is applied later in LlamaContext.
+/// Builds the system + user turns for the proofreader. Shared by the app and the
+/// test harness so they never drift. The gemma-4 chat template (which DOES have a
+/// real `system` role, unlike Gemma 2/3) is applied later in LlamaContext.
 ///
-/// Gemma has no separate system role, so the instruction is prepended to the
-/// user turn. The role wording ("a proofreading tool … never describe yourself")
-/// is what stops bare/odd inputs (a single word, @-mentions) derailing the small
-/// E2B model into a canned "I am Gemma…" identity reply. A one-shot example and a
-/// data-fence/label were both tried: the example made it hallucinate, and the
-/// label suppressed correction on short fragments — so the lever is instruction
-/// wording only. Any change MUST be re-validated with scripts/test-prompt.sh.
+/// The instruction goes in a dedicated system turn; the user turn carries only the
+/// text to fix. `finalize` is a fail-safe over the raw output. Any change here
+/// MUST be re-validated with scripts/test-prompt.sh.
 enum PromptBuilder {
     static let baseInstruction = """
         You are a proofreading tool. Your only job is to correct spelling, typos, grammar, and \
@@ -29,19 +26,19 @@ enum PromptBuilder {
         text — do not repeat the original, do not explain, do not add anything.
         """
 
-    static func build(text: String, additionalInstructions: String) -> String {
+    /// The system turn: base instruction + the Settings "additional instructions".
+    static func systemPrompt(additionalInstructions: String) -> String {
         var prompt = baseInstruction
         let extra = additionalInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
         if !extra.isEmpty {
             prompt += "\nAdditional instructions: \(extra)"
         }
-        // Passive data-label anchor. This phrasing (not an imperative like
-        // "Correct this text:") is what stops the identity-reply derail on
-        // bare/odd inputs — an imperative reads as a chat request and the model
-        // answers conversationally instead of proofreading.
-        prompt += "\n\nText to proofread:\n\(text)"
         return prompt
     }
+
+    /// The user turn: the text to proofread, under a passive data-label so the
+    /// model treats it as content to fix rather than a message to answer.
+    static func userPrompt(text: String) -> String { "Text to proofread:\n\(text)" }
 
     /// Assistant self-chatter the small E2B model emits when it derails on a
     /// degenerate input (a bare word, a lone comment) instead of proofreading.
@@ -70,6 +67,12 @@ enum PromptBuilder {
         let inWords = original.split(whereSeparator: \.isWhitespace).count
         let outWords = output.split(whereSeparator: \.isWhitespace).count
         if inWords <= 3 && outWords >= inWords + 6 {
+            return original
+        }
+        // A substantial input that collapses to a tiny output is a truncation /
+        // identity derail (e.g. a paragraph → "The model"), never a correction —
+        // proofreading keeps roughly the same length.
+        if inWords >= 6 && outWords * 2 < inWords {
             return original
         }
         // Multi-line input flattened to a single line is structural destruction
