@@ -3,6 +3,7 @@ import KeyboardShortcuts
 
 struct SettingsView: View {
     @ObservedObject var inference: InferenceService
+    @ObservedObject var updater: UpdaterManager
     @StateObject private var launchAtLogin = LaunchAtLogin()
 
     var body: some View {
@@ -10,6 +11,7 @@ struct SettingsView: View {
             Section {
                 KeyboardShortcuts.Recorder("Fix grammar hotkey:", name: .fixGrammar)
                 Toggle("Launch at login", isOn: $launchAtLogin.isEnabled)
+                Toggle("Automatically download updates", isOn: $updater.automaticallyDownloadsUpdates)
             }
 
             Section("Additional instructions") {

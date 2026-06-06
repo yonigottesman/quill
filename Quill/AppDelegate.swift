@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var statusItem: NSStatusItem!
     private var stateObserver: AnyCancellable?
+    private var updateObserver: AnyCancellable?
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
 
@@ -28,6 +29,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Keep the menu in sync with model load state.
         stateObserver = appState.inference.$state
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.rebuildMenu() }
+
+        // …and with update availability, so "Restart to update" appears once a
+        // download is staged.
+        updateObserver = appState.updater.$updateReadyToInstall
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuildMenu() }
     }
@@ -60,8 +67,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             add(menu, message, nil)
         }
 
+        if appState.updater.updateReadyToInstall {
+            menu.addItem(.separator())
+            add(menu, "Restart to update", #selector(restartToUpdate))
+        }
+
         menu.addItem(.separator())
         add(menu, "History…", #selector(openHistory))
+        add(menu, "Check for updates…", #selector(checkForUpdates))
         add(menu, "Settings…", #selector(openSettings), key: ",")
         add(menu, "Quit Quill", #selector(quit), key: "q")
     }
@@ -79,6 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func loadModel() { appState.inference.loadModel() }
     @objc private func unloadModel() { appState.inference.unloadModel() }
+    @objc private func restartToUpdate() { appState.updater.installAndRelaunch() }
+    @objc private func checkForUpdates() { appState.updater.checkForUpdates() }
     @objc private func quit() { NSApp.terminate(nil) }
 
     @objc private func openSettings() {
@@ -86,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             settingsWindow = makeWindow(
                 title: "Quill",
                 size: NSSize(width: 420, height: 300),
-                content: SettingsView(inference: appState.inference))
+                content: SettingsView(inference: appState.inference, updater: appState.updater))
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)

@@ -14,13 +14,22 @@ packages:
   HuggingFace:
     url: https://github.com/huggingface/swift-huggingface
     from: "0.9.0"
+  # In-app auto-update (appcast + EdDSA-signed DMG). SPM auto-embeds and re-signs
+  # Sparkle.framework + its XPC services with our Team ID, so no manual framework
+  # embed entry and (so far) no extra entitlements are needed under hardened runtime.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 
 settings:
   base:
     ARCHS: arm64
     ONLY_ACTIVE_ARCH: YES
     SWIFT_VERSION: "5.0"          # Swift 5 language mode for a friction-free first build; tighten to 6 later
-    MARKETING_VERSION: "0.1.2"
+    MARKETING_VERSION: "0.1.3"
+    # Placeholder build number for local builds. CI injects a real monotonic value
+    # (git rev-list --count HEAD) so Sparkle's CFBundleVersion comparison can detect
+    # newer releases — see .github/workflows/release.yml.
     CURRENT_PROJECT_VERSION: "1"
     # Sign with the stable Developer ID identity (not ad-hoc) so macOS keeps the
     # Accessibility/TCC grant across rebuilds. Hardened runtime stays off until
@@ -39,18 +48,32 @@ targets:
     dependencies:
       - package: KeyboardShortcuts
       - package: HuggingFace
+      - package: Sparkle
+        product: Sparkle
       # Self-contained llama.cpp — embedded so the app does NOT need a local
       # Homebrew install. Produce it once with: scripts/build-xcframework.sh
       - framework: Frameworks/llama.xcframework
         embed: true
         codeSign: true
     info:
+      # NOTE: XcodeGen GENERATES Quill/Info.plist from these properties on every
+      # `xcodegen generate` — editing the plist directly is futile (like the
+      # pbxproj). Add Info.plist keys here.
       path: Quill/Info.plist
       properties:
         LSUIElement: true         # menu-bar only, no Dock icon
         CFBundleDisplayName: Quill
         CFBundleIconFile: Quill   # Quill.icns (Finder/Spotlight icon)
         LSMinimumSystemVersion: "15.0"
+        # Track the real version build settings so Sparkle can compare CFBundleVersion
+        # (XcodeGen otherwise hardcodes 1.0 / 1).
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Sparkle auto-update: the appcast feed (committed in this repo, served via
+        # raw), the EdDSA public key that verifies every download, and background checks.
+        SUFeedURL: "https://raw.githubusercontent.com/yonigottesman/quill/main/appcast.xml"
+        SUPublicEDKey: "Ul1TR/v/yDhbCnOqNQ+q8jFWTqh4I1Z/VpVCeIuvIgs="
+        SUEnableAutomaticChecks: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yonigo.Quill

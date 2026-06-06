@@ -7,6 +7,7 @@ final class AppState: ObservableObject {
     let inference = InferenceService()
     let history = HistoryStore()
     let textAction: TextActionService
+    let updater = UpdaterManager()
 
     init() {
         textAction = TextActionService(inference: inference, history: history)

@@ -6,13 +6,17 @@ name: Build & release macOS DMG
 # wasn't bumped, the macOS `build` job is skipped entirely (no build runs at all,
 # the run is green). So: bump MARKETING_VERSION to ship, otherwise nothing builds.
 #
-# Secrets are the same five App Store Connect / Developer ID secrets used by the
-# ezdash repo:
-#   CSC_LINK            base64 of the Developer ID Application .p12
-#   CSC_KEY_PASSWORD    password protecting that .p12
-#   APPLE_API_KEY_P8    base64 of the App Store Connect API key (.p8)
-#   APPLE_API_KEY_ID    the key's Key ID
-#   APPLE_API_ISSUER    the API key's Issuer ID
+# Secrets: the same five App Store Connect / Developer ID secrets used by the
+# ezdash repo, plus one Sparkle key:
+#   CSC_LINK                base64 of the Developer ID Application .p12
+#   CSC_KEY_PASSWORD        password protecting that .p12
+#   APPLE_API_KEY_P8        base64 of the App Store Connect API key (.p8)
+#   APPLE_API_KEY_ID        the key's Key ID
+#   APPLE_API_ISSUER        the API key's Issuer ID
+#   SPARKLE_ED_PRIVATE_KEY  base64 of the Sparkle EdDSA private key (from
+#                           `generate_keys -x`); signs the DMG so Sparkle accepts
+#                           the update. The matching public key lives in Info.plist
+#                           (SUPublicEDKey).
 on:
   push:
     branches: [main]
@@ -60,7 +64,12 @@ jobs:
       VERSION: ${{ needs.gate.outputs.version }}
       TAG: ${{ needs.gate.outputs.tag }}
     steps:
+      # Full history: the Sparkle build number is `git rev-list --count HEAD`, and
+      # we push the regenerated appcast back to main — both need real history, not
+      # checkout's default shallow clone.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install build tools
         run: brew install xcodegen cmake
@@ -103,6 +112,11 @@ jobs:
       - name: Build & sign Quill.app
         run: |
           xcodegen generate
+          # Monotonic build number for Sparkle's CFBundleVersion comparison. The
+          # project.yml value (1) is only a local-build placeholder; releases must
+          # carry a strictly-increasing number or updates never trigger.
+          BUILD=$(git rev-list --count HEAD)
+          echo "BUILD=$BUILD" >> "$GITHUB_ENV"
           set -o pipefail
           xcodebuild -project Quill.xcodeproj -scheme Quill \
             -configuration Release \
@@ -114,6 +128,7 @@ jobs:
             ENABLE_HARDENED_RUNTIME=YES \
             CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            CURRENT_PROJECT_VERSION=$BUILD \
             build 2>&1 | grep -E "BUILD (SUCCEEDED|FAILED)|error:" || true
           app="build/Build/Products/Release/Quill.app"
           [ -d "$app" ] || { echo "Build failed — no app produced." >&2; exit 1; }
@@ -159,6 +174,24 @@ jobs:
           xcrun stapler staple "$DMG"
           xcrun stapler validate "$DMG"
 
+      # ---- Sparkle EdDSA signature over the FINAL (stapled) DMG bytes ----------
+      # Must run after stapling, since stapling rewrites the DMG. sign_update ships
+      # inside Sparkle's resolved SPM artifact. Output is the exact
+      # `sparkle:edSignature="…" length="…"` attributes the appcast enclosure needs.
+      - name: Sign DMG with Sparkle (EdDSA)
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          # bin/sign_update is the EdDSA tool; exclude the legacy old_dsa_scripts/ one.
+          sign=$(find build/SourcePackages/artifacts -name sign_update -type f 2>/dev/null | grep -v old_dsa_scripts | head -1)
+          [ -n "$sign" ] || { echo "error: sign_update not found in resolved Sparkle artifact." >&2; exit 1; }
+          echo "$SPARKLE_ED_PRIVATE_KEY" | base64 --decode > "$RUNNER_TEMP/sparkle_ed_priv.key"
+          out=$("$sign" "$DMG" -f "$RUNNER_TEMP/sparkle_ed_priv.key")
+          rm -f "$RUNNER_TEMP/sparkle_ed_priv.key"
+          echo "Sparkle: $out"
+          echo "ED_SIG=$(printf '%s' "$out" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')" >> "$GITHUB_ENV"
+          echo "ED_LEN=$(printf '%s' "$out" | sed -n 's/.*length="\([^"]*\)".*/\1/p')" >> "$GITHUB_ENV"
+
       # ---- publish the GitHub Release ----------------------------------------
       # create-or-update: a fresh push creates the release; a manual re-run
       # (workflow_dispatch) on an existing tag just re-uploads the DMG.
@@ -179,3 +212,55 @@ jobs:
             echo "### Quill $TAG released ✅"
             echo "Download: ${{ github.server_url }}/${{ github.repository }}/releases/latest"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- regenerate the Sparkle appcast and commit it to main ---------------
+      # appcast.xml is the feed installed copies poll (SUFeedURL → raw.github…). CI
+      # owns it — never hand-edited. We prepend an <item> for this release (pointing
+      # at the just-uploaded DMG, with the EdDSA signature) and push it back to main.
+      # The [skip ci] commit can't loop: the gate job skips builds once v$VERSION
+      # exists, which it now does.
+      - name: Update appcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export PUBDATE="$(date -R)"
+          python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          SP = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+          ET.register_namespace("sparkle", SP)
+          v, build = os.environ["VERSION"], os.environ["BUILD"]
+          url = f"https://github.com/yonigottesman/quill/releases/download/v{v}/Quill-{v}.dmg"
+          path = "appcast.xml"
+          if os.path.exists(path):
+              tree = ET.parse(path); rss = tree.getroot(); channel = rss.find("channel")
+          else:
+              rss = ET.Element("rss", {"version": "2.0"})
+              channel = ET.SubElement(rss, "channel")
+              ET.SubElement(channel, "title").text = "Quill"
+              tree = ET.ElementTree(rss)
+          # Drop any existing entry for this build number (idempotent on re-runs).
+          for it in channel.findall("item"):
+              el = it.find(f"{{{SP}}}version")
+              if el is not None and el.text == build:
+                  channel.remove(it)
+          item = ET.Element("item")
+          ET.SubElement(item, "title").text = v
+          ET.SubElement(item, f"{{{SP}}}version").text = build
+          ET.SubElement(item, f"{{{SP}}}shortVersionString").text = v
+          ET.SubElement(item, f"{{{SP}}}minimumSystemVersion").text = "15.0"
+          ET.SubElement(item, "pubDate").text = os.environ["PUBDATE"]
+          ET.SubElement(item, "enclosure", {
+              "url": url,
+              "type": "application/octet-stream",
+              "length": os.environ["ED_LEN"],
+              f"{{{SP}}}edSignature": os.environ["ED_SIG"],
+          })
+          channel.insert(1, item)  # newest first, just after <title>
+          ET.indent(tree, space="  ")
+          tree.write(path, encoding="utf-8", xml_declaration=True)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "Release: update appcast for $TAG [skip ci]"
+          git push origin HEAD:main
