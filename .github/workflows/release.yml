@@ -249,9 +249,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PUBDATE="$(date -R)" python3 scripts/update-appcast.py
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add appcast.xml
-          git commit -m "Release: update appcast for $TAG [skip ci]"
-          git push origin HEAD:main
+          # main may have advanced since this job checked out (e.g. an unrelated
+          # docs push). Re-base on the freshest origin/main and retry so a
+          # concurrent push can't make this a non-fast-forward failure. The
+          # appcast script is idempotent on BUILD, and BUILD/ED_* come from env
+          # (the built app), so regenerating on a newer base stays correct.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            PUBDATE="$(date -R)" python3 scripts/update-appcast.py
+            git add appcast.xml
+            git commit -m "Release: update appcast for $TAG [skip ci]"
+            if git push origin HEAD:main; then
+              echo "appcast pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) — re-basing on origin/main and retrying"
+            sleep $((attempt * 3))
+          done
+          echo "::error::failed to push appcast after 5 attempts"
+          exit 1
