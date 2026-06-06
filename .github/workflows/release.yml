@@ -249,42 +249,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          export PUBDATE="$(date -R)"
-          python3 - <<'PY'
-          import os, xml.etree.ElementTree as ET
-          SP = "http://www.andymatuschak.org/xml-namespaces/sparkle"
-          ET.register_namespace("sparkle", SP)
-          v, build = os.environ["VERSION"], os.environ["BUILD"]
-          url = f"https://github.com/yonigottesman/quill/releases/download/v{v}/Quill-{v}.dmg"
-          path = "appcast.xml"
-          if os.path.exists(path):
-              tree = ET.parse(path); rss = tree.getroot(); channel = rss.find("channel")
-          else:
-              rss = ET.Element("rss", {"version": "2.0"})
-              channel = ET.SubElement(rss, "channel")
-              ET.SubElement(channel, "title").text = "Quill"
-              tree = ET.ElementTree(rss)
-          # Drop any existing entry for this build number (idempotent on re-runs).
-          for it in channel.findall("item"):
-              el = it.find(f"{{{SP}}}version")
-              if el is not None and el.text == build:
-                  channel.remove(it)
-          item = ET.Element("item")
-          ET.SubElement(item, "title").text = v
-          ET.SubElement(item, f"{{{SP}}}version").text = build
-          ET.SubElement(item, f"{{{SP}}}shortVersionString").text = v
-          ET.SubElement(item, f"{{{SP}}}minimumSystemVersion").text = "15.0"
-          ET.SubElement(item, "pubDate").text = os.environ["PUBDATE"]
-          ET.SubElement(item, "enclosure", {
-              "url": url,
-              "type": "application/octet-stream",
-              "length": os.environ["ED_LEN"],
-              f"{{{SP}}}edSignature": os.environ["ED_SIG"],
-          })
-          channel.insert(1, item)  # newest first, just after <title>
-          ET.indent(tree, space="  ")
-          tree.write(path, encoding="utf-8", xml_declaration=True)
-          PY
+          PUBDATE="$(date -R)" python3 scripts/update-appcast.py
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add appcast.xml

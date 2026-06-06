@@ -43,13 +43,11 @@ final class UpdaterManager: NSObject, ObservableObject, SPUUpdaterDelegate, SPUS
         automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
     }
 
-    /// Manual check (handy for a "Check for updates…" button; not wired today).
+    /// The single "advance the update flow" action, behind both menu items. Sparkle
+    /// is stateful, so one call does the right thing in either context: with nothing
+    /// staged it checks for updates ("Check for updates…"); with a download already
+    /// staged it presents the install-and-relaunch step ("Restart to update").
     func checkForUpdates() { controller.updater.checkForUpdates() }
-
-    /// Invoked by the menu's "Restart to update". Re-entering the update check
-    /// resumes the already-downloaded session, so Sparkle presents its
-    /// install-and-relaunch step rather than re-downloading from scratch.
-    func installAndRelaunch() { controller.updater.checkForUpdates() }
 
     // MARK: - SPUStandardUserDriverDelegate (gentle reminders → menu-only UX)
 

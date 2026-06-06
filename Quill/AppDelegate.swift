@@ -92,7 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func loadModel() { appState.inference.loadModel() }
     @objc private func unloadModel() { appState.inference.unloadModel() }
-    @objc private func restartToUpdate() { appState.updater.installAndRelaunch() }
+    // Both menu items drive the same stateful Sparkle action (see UpdaterManager):
+    // a staged download resumes into install-and-relaunch, otherwise it just checks.
+    @objc private func restartToUpdate() { appState.updater.checkForUpdates() }
     @objc private func checkForUpdates() { appState.updater.checkForUpdates() }
     @objc private func quit() { NSApp.terminate(nil) }
 
