@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Quill</title>
+    <item>
+      <title>0.1.3</title>
+      <sparkle:version>28</sparkle:version>
+      <sparkle:shortVersionString>0.1.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Sat, 06 Jun 2026 09:19:47 +0000</pubDate>
+      <enclosure url="https://github.com/yonigottesman/quill/releases/download/v0.1.3/Quill-0.1.3.dmg" type="application/octet-stream" length="5542450" sparkle:edSignature="y376rT/VMhZVkw2SAhfdrrfT0wGuhChzdVlNJhwnEk5mze3XI6yxvfnjrgLA+IEBdc5vo62mZ6TlIlW3JUgwBw==" />
+    </item>
+  </channel>
+</rss>
