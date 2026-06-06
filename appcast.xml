@@ -3,6 +3,14 @@
   <channel>
     <title>Quill</title>
     <item>
+      <title>0.1.6</title>
+      <sparkle:version>39</sparkle:version>
+      <sparkle:shortVersionString>0.1.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Sat, 06 Jun 2026 13:27:29 +0000</pubDate>
+      <enclosure url="https://github.com/yonigottesman/quill/releases/download/v0.1.6/Quill-0.1.6.dmg" type="application/octet-stream" length="5550643" sparkle:edSignature="lBAXE3jEvJmDuKxCaz6+7aZLEjmccdgZMx8ma61gXVb4CG188YpQQmj8k3ERDZzy0k/8DXdZZvEDgi27mz/7Cw==" />
+    </item>
+    <item>
       <title>0.1.5</title>
       <sparkle:version>36</sparkle:version>
       <sparkle:shortVersionString>0.1.5</sparkle:shortVersionString>
