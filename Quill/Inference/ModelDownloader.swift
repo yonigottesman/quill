@@ -6,12 +6,14 @@ import HuggingFace
 /// locator without the HuggingFace SPM package (it never downloads). The app
 /// always compiles this file.
 extension ModelLocator {
-    /// The Hugging Face repo holding the weights.
-    static let repoID: Repo.ID = "ggml-org/gemma-4-E2B-it-GGUF"
+    /// The Hugging Face repo holding the weights. Unsloth's QAT (quantization-aware
+    /// trained) build matches Q8 quality on proofreading while being ~42% faster and
+    /// ~2.2 GB smaller in GPU memory — see scripts/grammar-eval.sh.
+    static let repoID: Repo.ID = "unsloth/gemma-4-E2B-it-qat-GGUF"
     /// The main weights GGUF inside the repo. Matched as a download glob so we
     /// fetch ONLY this file — not the other quants or the `mmproj-*` vision
     /// projector (which this text-only app doesn't use).
-    static let weightsFile = "gemma-4-E2B-it-Q8_0.gguf"
+    static let weightsFile = "gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf"
 
     /// Downloads the weights GGUF into the standard Hugging Face cache — the same
     /// cache `resolveGGUF()` reads, shared with the Python `huggingface_hub`

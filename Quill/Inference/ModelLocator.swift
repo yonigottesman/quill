@@ -14,14 +14,14 @@ enum ModelLocatorError: LocalizedError {
 
 /// Locates the gemma-4-E2B-it GGUF inside the standard Hugging Face cache.
 /// The cache is populated by `ModelLocator.download()` (see ModelDownloader.swift)
-/// or by `llama-cli/llama-server -hf ggml-org/gemma-4-E2B-it-GGUF`.
+/// or by `llama-cli/llama-server -hf unsloth/gemma-4-E2B-it-qat-GGUF`.
 ///
 /// This file is pure Foundation so the standalone test harness
 /// (scripts/test-prompt.sh) can compile it without the HuggingFace SPM package —
 /// the harness only resolves an already-present model, it never downloads.
 enum ModelLocator {
-    /// `~/.cache/huggingface/hub/models--ggml-org--gemma-4-E2B-it-GGUF`
-    static let repoDir = ("~/.cache/huggingface/hub/models--ggml-org--gemma-4-E2B-it-GGUF"
+    /// `~/.cache/huggingface/hub/models--unsloth--gemma-4-E2B-it-qat-GGUF`
+    static let repoDir = ("~/.cache/huggingface/hub/models--unsloth--gemma-4-E2B-it-qat-GGUF"
                           as NSString).expandingTildeInPath
 
     /// True when the weights are already present in the HF cache (so we can skip
