@@ -117,49 +117,41 @@ actor LlamaContext {
 
     // MARK: - Chat template
 
+    /// Renders the gemma-4 chat template for a `[system, user]` exchange, byte-for-byte
+    /// matching what `llama cli --jinja` (the ground truth) produces.
+    ///
+    /// We do NOT use `llama_chat_apply_template`: that legacy C API only knows a fixed
+    /// set of built-in templates and returns -1 for gemma-4's new jinja template (its
+    /// `<|turn>` markers and macros aren't recognized). The jinja engine that handles it
+    /// lives in llama.cpp's `common` library, which the app doesn't link. So we emit the
+    /// template directly. The gemma-4 markers `<|turn>` / `<turn|>` are real special
+    /// tokens (105 / 106) — the classic Gemma `<start_of_turn>` is NOT in this vocab and
+    /// would shred into raw subword tokens. `bos_token` is added by the tokenizer
+    /// (`addSpecial: true`), so it is not emitted here. Reasoning/thinking stays off
+    /// (no `<|think|>`), matching the app's intent and `llama cli --reasoning off`.
+    ///
+    /// The jinja template trims system and user content, so we trim too.
     private func applyChatTemplate(system: String, user: String) -> String {
-        guard let tmpl = llama_model_chat_template(model, nil) else {
-            return hardcodedGemmaTemplate(system: system, user: user)
-        }
-        // strdup gives stable C pointers for the duration of the call; the C API
-        // keeps no reference past it. The gemma-4 template renders a real system
-        // turn when messages[0].role == "system".
-        let parts = [("system", system), ("user", user)]
-        var allocations: [UnsafeMutablePointer<CChar>] = []
-        defer { allocations.forEach { free($0) } }
-        var messages: [llama_chat_message] = parts.map { role, content in
-            let r = strdup(role)!, c = strdup(content)!
-            allocations.append(r); allocations.append(c)
-            return llama_chat_message(role: r, content: c)
-        }
-
-        let count = messages.count
-        var buffer = [CChar](repeating: 0, count: system.utf8.count + user.utf8.count + 512)
-        var needed = llama_chat_apply_template(tmpl, &messages, count, true, &buffer, Int32(buffer.count))
-        if needed > Int32(buffer.count) {
-            buffer = [CChar](repeating: 0, count: Int(needed))
-            needed = llama_chat_apply_template(tmpl, &messages, count, true, &buffer, Int32(buffer.count))
-        }
-        guard needed > 0 else { return hardcodedGemmaTemplate(system: system, user: user) }
-        let utf8 = buffer.prefix(Int(needed)).map { UInt8(bitPattern: $0) }
-        return String(decoding: utf8, as: UTF8.self)
+        let sys = system.trimmingCharacters(in: .whitespacesAndNewlines)
+        let usr = user.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "<|turn>system\n\(sys)<turn|>\n<|turn>user\n\(usr)<turn|>\n<|turn>model\n"
     }
 
-    /// Fallback only if the model ships no chat template (it does). Folds the
-    /// system text into the user turn since the classic Gemma markers have no
-    /// system role.
-    private func hardcodedGemmaTemplate(system: String, user: String) -> String {
-        "<start_of_turn>user\n\(system)\n\n\(user)<end_of_turn>\n<start_of_turn>model\n"
-    }
-
-    /// Drops a leading `<think>…</think>` block and stray turn markers, then trims.
+    /// Drops a leading thinking block and stray turn markers, then trims. gemma-4
+    /// uses `<|turn>`/`<turn|>` turn markers and `<|channel>thought…<channel|>` for
+    /// thinking (not the classic `<end_of_turn>`/`<think>`); we strip all of them so
+    /// a stray marker never reaches the pasted output.
     private func clean(_ text: String) -> String {
         var out = text
         if let end = out.range(of: "</think>") {
             out = String(out[end.upperBound...])
         }
-        out = out.replacingOccurrences(of: "<end_of_turn>", with: "")
-                 .replacingOccurrences(of: "<start_of_turn>", with: "")
+        if let end = out.range(of: "<channel|>") {
+            out = String(out[end.upperBound...])
+        }
+        for marker in ["<turn|>", "<|turn>", "<end_of_turn>", "<start_of_turn>"] {
+            out = out.replacingOccurrences(of: marker, with: "")
+        }
         return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

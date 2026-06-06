@@ -59,8 +59,21 @@ was tried and was not the fix). The hard-won, non-obvious findings:
 
 - **This `gemma-4-E2B-it` has a real `system` role** (its template supports `system`/`developer`,
   thinking, tools — unlike classic Gemma 2/3). The instruction goes in the system turn, the user turn
-  carries only the text. `applyChatTemplate` sends `[system, user]` (C strings via `strdup`; `n_msg`
-  is `size_t`/`Int`).
+  carries only the text.
+- **`applyChatTemplate` builds the gemma-4 template by hand — do NOT route it through
+  `llama_chat_apply_template`.** That legacy C API only knows a fixed set of built-in templates and
+  **returns -1 for gemma-4's jinja template** (its `<|turn>`/`<turn|>` markers + macros aren't
+  recognized); the jinja engine that handles it lives in llama.cpp's `common` lib, which the app
+  doesn't link. The old code's "fallback" then emitted the **classic Gemma `<start_of_turn>` format** —
+  which isn't even in this vocab, so it **shredded into raw subword tokens** (7 garbage tokens per
+  marker) with the system folded into the user turn. The model never saw a real system turn. The
+  correct format is `<|turn>system\n{sys}<turn|>\n<|turn>user\n{usr}<turn|>\n<|turn>model\n`
+  (`<|turn>`=105, `<turn|>`=106 are real special tokens; BOS via the tokenizer's `addSpecial`,
+  not emitted in the string). System and user content are `trim`med to match the jinja template.
+- **Ground-truth alignment is checked by `./scripts/compare-cli.sh`** — runs ~40 prompts through the
+  Swift path AND `llama cli` (greedy `--temp 0`, `--reasoning off`) and asserts byte-identical raw
+  output. Run it after any template/sampling change. (`llama cli` uses jinja, so it's the oracle; the
+  app can't.)
 - **The `Text to proofread:` anchor is applied conditionally by length** (`userPrompt`) — it's the
   behavior dial. With it, long/Markdown input is safe but short input is under-corrected; without it,
   short input gets fixed but long input derails (paragraph → `"The model"`). So **≤7 words → no
