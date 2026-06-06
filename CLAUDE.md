@@ -37,8 +37,13 @@ Sign, found at runtime via `@executable_path/../Frameworks`) — no Homebrew dep
   always installed).
 - **Pinned to llama.cpp `b9290`** (`LLAMA_CPP_REF`) — the C API `LlamaContext.swift` was written
   against. A release with a changed API breaks `LlamaContext.swift`.
-- **`scripts/test-prompt.sh` is the exception** — it compiles the inference code standalone against
-  Homebrew `libllama` via `Vendor/llama/module.modulemap` (test-harness-only; the app doesn't use it).
+- **`scripts/test-prompt.sh`** compiles the inference code standalone with `swiftc`, but links the
+  **same `Frameworks/llama.xcframework`** the app embeds (via `-F`/`-framework llama`) — so the harness
+  and the app can never drift onto different llama.cpp builds. The framework is the build prerequisite;
+  no Homebrew install needed. The harness compiles `ModelLocator.swift` (pure Foundation — resolves an
+  already-present GGUF) but **not** `ModelDownloader.swift` (the `import HuggingFace` half — the only
+  download path), so it builds without the SPM package. Keep that split: no HuggingFace symbols in
+  `ModelLocator.swift`.
 
 ## Model
 
