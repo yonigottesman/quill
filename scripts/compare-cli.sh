@@ -7,7 +7,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 FW_DIR="$PWD/Frameworks/llama.xcframework/macos-arm64_x86_64"
-GGUF=$(find "$HOME/.cache/huggingface" -name "gemma-4-E2B-it-Q8_0.gguf" | head -1)
 OUT=.scratch/compare
 rm -rf "$OUT"; mkdir -p "$OUT"
 
@@ -19,8 +18,13 @@ swiftc -O -F "$FW_DIR" -framework llama -Xlinker -rpath -Xlinker "$FW_DIR" -pars
   scripts/compare-harness.swift \
   -o .scratch/compare-harness
 
-echo "==> Running Swift path (writes case_*.{sys,user,raw})"
+echo "==> Running Swift path (writes case_*.{sys,user,raw} + model.path)"
 .scratch/compare-harness "$OUT" 2>/dev/null
+
+# Use the EXACT GGUF the Swift harness resolved (via ModelLocator), so `llama cli`
+# is the oracle for the SAME model — never a hardcoded filename that could drift.
+GGUF=$(cat "$OUT/model.path")
+echo "==> Oracle model: $GGUF"
 
 n=$(ls "$OUT"/case_*.raw | wc -l | tr -d ' ')
 echo "==> Comparing $n cases against 'llama cli' (greedy, reasoning off)"

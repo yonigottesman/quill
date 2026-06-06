@@ -110,6 +110,9 @@ struct CompareHarness {
         let outDir = CommandLine.arguments[1]
         let path = try ModelLocator.resolveGGUF()
         FileHandle.standardError.write("Model: \(path)\n".data(using: .utf8)!)
+        // Record the exact GGUF so compare-cli.sh feeds `llama cli` the SAME model
+        // ModelLocator resolved — never a hardcoded filename that could drift.
+        try path.write(toFile: "\(outDir)/model.path", atomically: true, encoding: .utf8)
         let ctx = try LlamaContext.create(modelPath: path)
         for (i, c) in cases.enumerated() {
             let system = PromptBuilder.systemPrompt(additionalInstructions: c.additional)
