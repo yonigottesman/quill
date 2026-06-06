@@ -141,6 +141,27 @@ jobs:
           fi
           echo "APP_PATH=$app" >> "$GITHUB_ENV"
 
+      # ---- re-sign Sparkle's embedded helpers with hardened runtime + timestamp -
+      # The notary requires a *secure timestamp* and hardened runtime on every
+      # nested executable. xcodebuild's embedded signing applies hardened runtime
+      # but not reliably a timestamp to Sparkle's helpers (XPC services, Autoupdate,
+      # Updater.app) — so re-sign them inside-out before packaging. Quill itself has
+      # no entitlements file, so a plain re-sign keeps it free of get-task-allow.
+      - name: Harden Sparkle helpers
+        run: |
+          ver="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B"
+          sign() { codesign --force --options runtime --timestamp --sign "Developer ID Application" "$@"; }
+          for x in "$ver/XPCServices/Downloader.xpc" "$ver/XPCServices/Installer.xpc" \
+                   "$ver/Autoupdate" "$ver/Updater.app" \
+                   "$APP_PATH/Contents/Frameworks/Sparkle.framework" "$APP_PATH"; do
+            echo "re-signing $x"; sign "$x"
+          done
+          codesign --verify --strict --verbose=2 "$APP_PATH"
+          if codesign -d --entitlements - --xml "$APP_PATH" 2>/dev/null | grep -q 'get-task-allow'; then
+            echo "error: get-task-allow present after re-sign — notarization would reject." >&2
+            exit 1
+          fi
+
       # ---- package the DMG ----------------------------------------------------
       - name: Create DMG
         run: |
@@ -166,11 +187,16 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
-          xcrun notarytool submit "$DMG" \
-            --key "$RUNNER_TEMP/AuthKey.p8" \
-            --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER" \
-            --wait
+          creds=(--key "$RUNNER_TEMP/AuthKey.p8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER")
+          xcrun notarytool submit "$DMG" "${creds[@]}" --wait --output-format json > "$RUNNER_TEMP/notary.json"
+          cat "$RUNNER_TEMP/notary.json"
+          sub=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["id"])' "$RUNNER_TEMP/notary.json")
+          status=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/notary.json")
+          if [ "$status" != "Accepted" ]; then
+            echo "::error::Notarization $status — full log below:"
+            xcrun notarytool log "$sub" "${creds[@]}"
+            exit 1
+          fi
           xcrun stapler staple "$DMG"
           xcrun stapler validate "$DMG"
 
