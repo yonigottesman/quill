@@ -9,7 +9,9 @@
 </p>
 
 Press a global hotkey → Quill copies the selected text, fixes its spelling, grammar, and
-capitalization with a local Gemma model, and pastes the result back in place.
+capitalization with a local model — the `Q8_0` GGUF from
+[`ggml-org/gemma-4-E2B-it-GGUF`](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF) — and
+pastes the result back in place.
 
 **Nothing leaves your machine.** The model runs in-process via llama.cpp — no server, no
 subprocess, no network. Your text is never uploaded anywhere.
@@ -18,8 +20,9 @@ subprocess, no network. Your text is never uploaded anywhere.
 
 1. Download the latest `Quill.dmg` from [Releases](../../releases) and drag Quill to Applications.
 2. Launch it — a ✏️ icon appears in the menu bar.
-3. Click the icon → **Load model**. The Gemma weights download automatically the first time
-   (a one-time download); after that the model loads in a few seconds.
+3. Click the icon → **Load model**. The `gemma-4-E2B-it-Q8_0.gguf` weights (~4.6 GB) download
+   automatically the first time into the standard Hugging Face cache (a one-time download);
+   after that the model loads in a few seconds.
 4. Open **Settings…** and pick a global hotkey.
 5. Select text in any app and press your hotkey — Quill replaces it with the corrected version.
 
