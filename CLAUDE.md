@@ -82,10 +82,25 @@ to the prompt, template, sampling, or inference path, always run BOTH harnesses:
   behavior dial. With it, long/Markdown input is safe but short input is under-corrected; without it,
   short input gets fixed but long input derails (paragraph → `"The model"`). So **≤7 words → no
   anchor**, longer → anchor.
-- **`finalize(output:original:)` is a fail-safe** (app + harness): if the output looks like a derail
-  (self-reference/chit-chat markers *not in the input*, a short input exploding, a long input
-  collapsing, or a multi-line input flattened to one line), it returns the **original unchanged** —
-  the app must never paste model chatter. A missed typo is the accepted cost.
+- **`finalize(output:original:additionalInstructions:)` is a fail-safe** (app + harness): if the
+  output looks like a derail (self-reference/chit-chat markers *not in the input*, a short input
+  exploding, a long input collapsing, or a multi-line input flattened to one line), it returns the
+  **original unchanged** — the app must never paste model chatter. A missed typo is the accepted cost.
+  **When additional instructions are present the length/structure guards are SKIPPED** (only the
+  identity/chatter marker guard stays): a transform like "make it concise" legitimately collapses the
+  text and "expand all contractions" legitimately grows it, so those heuristics would wrongly revert a
+  correct rewrite.
+- **Settings "additional instructions" swap to a SEPARATE system prompt (`transformInstruction`), they
+  are NOT appended to `baseInstruction`.** The base prompt's hard "make as few changes as possible / do
+  not rephrase, reword, expand, restructure" stricture wins every conflict on this small model, so
+  appending a contradicting "...but actually do rephrase" override both **fails to enable the
+  transform** ("make it concise"/"more professional"/"expand contractions" stayed ignored) **and
+  destabilizes surface instructions that did work** (British spelling flipped back to American). The
+  fix: with no instructions, `systemPrompt` returns `baseInstruction` **verbatim** (so the 60+ plain
+  cases are byte-identical and can't regress); with instructions, it returns `transformInstruction`,
+  which drops the minimal-change strictures and leads with proofread-then-apply-the-instruction. Both
+  paths still feed the *same* system turn to Swift and `llama cli`, so `compare-cli.sh` stays
+  byte-identical regardless of wording.
 - Tried and **worse, do not re-add**: a one-shot example (hallucinates), a `Corrected:` cue (same), an
   imperative anchor like "Correct this text:" (reads as chat → conversational derail).
 - `test-prompt.sh` ends with `fflush(stdout); _exit(0)` — `_exit` skips the benign teardown SIGABRT
@@ -96,10 +111,11 @@ to the prompt, template, sampling, or inference path, always run BOTH harnesses:
 `.github/workflows/release.yml` builds, signs, **notarizes & staples** the DMG on every push to
 `main` and publishes it as a GitHub Release.
 
-- **A release ships ONLY when you bump `MARKETING_VERSION` in `project.yml`.** The workflow tags the
-  release `v<MARKETING_VERSION>`; if that tag already exists the merge just builds as a CI check and
-  **skips the release**. So **when you make a change you want released, bump `MARKETING_VERSION`
-  before pushing** — otherwise the DMG won't publish.
+- **A release ships ONLY when you bump `MARKETING_VERSION` in `project.yml`.** A fast `gate` job reads
+  the version and the macOS `build` job runs **only if no `v<MARKETING_VERSION>` release exists yet** —
+  if the tag already exists the build is **skipped entirely** (no macOS build runs; the run is green).
+  So **when you make a change you want released, bump `MARKETING_VERSION` before pushing** — otherwise
+  nothing builds. (`workflow_dispatch` forces a build regardless, re-uploading the DMG onto the tag.)
 - CI builds **Release config with `ENABLE_HARDENED_RUNTIME=YES`** (notarization requires it) — unlike
   the local `build.sh`, which is Debug + hardened-runtime off. If a change works locally but breaks
   the notarized build, suspect hardened runtime.

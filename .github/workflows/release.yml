@@ -1,12 +1,10 @@
 name: Build & release macOS DMG
 
-# Builds, signs & notarizes Quill.app on every merge to main and publishes a
-# downloadable DMG as a GitHub Release.
-#
-# A release is published ONLY when MARKETING_VERSION (project.yml) names a tag
-# that doesn't already exist. So bumping the version in project.yml is all it
-# takes to ship a new release — merges that don't bump it still build (as a CI
-# check) but skip the release. Re-running the same version is a no-op.
+# Builds, signs & notarizes Quill.app and publishes a downloadable DMG as a
+# GitHub Release — but ONLY when MARKETING_VERSION (project.yml) names a release
+# tag that doesn't exist yet. A cheap `gate` job decides up front; if the version
+# wasn't bumped, the macOS `build` job is skipped entirely (no build runs at all,
+# the run is green). So: bump MARKETING_VERSION to ship, otherwise nothing builds.
 #
 # Secrets are the same five App Store Connect / Developer ID secrets used by the
 # ezdash repo; populate them in this repo with scripts/setup-ci-secrets.sh:
@@ -24,16 +22,16 @@ permissions:
   contents: write          # create the GitHub Release + upload the DMG asset
 
 jobs:
-  build:
-    runs-on: macos-latest
+  # ---- decide whether there's anything to build (fast, cheap) ---------------
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.check.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
-
-      # ---- version & "should we release?" gate -------------------------------
-      # MARKETING_VERSION lives in project.yml. If a release tagged v<version>
-      # already exists, this merge didn't bump it → build only, no release.
-      - name: Resolve version
-        id: ver
+      - id: check
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -42,13 +40,27 @@ jobs:
           tag="v$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "release=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Release $tag already exists — building as a check only. Bump MARKETING_VERSION in project.yml to publish a new release."
+          # workflow_dispatch always builds (manual escape hatch); a push only
+          # builds when its version tag doesn't already have a release.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          elif gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$tag already released — nothing to build. Bump MARKETING_VERSION in project.yml to release a new version."
           else
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Will publish release $tag."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::New version $tag — building and releasing."
           fi
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.should_build == 'true'
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.gate.outputs.version }}
+      TAG: ${{ needs.gate.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Install build tools
         run: brew install xcodegen cmake
@@ -117,8 +129,7 @@ jobs:
       # ---- package the DMG ----------------------------------------------------
       - name: Create DMG
         run: |
-          version="${{ steps.ver.outputs.version }}"
-          dmg="Quill-$version.dmg"
+          dmg="Quill-$VERSION.dmg"
           staging="$RUNNER_TEMP/dmg"
           rm -rf "$staging"; mkdir -p "$staging"
           ditto "$APP_PATH" "$staging/Quill.app"
@@ -134,7 +145,6 @@ jobs:
       # is Apple's recommended approach for DMG distribution (the dragged-out
       # app inherits the notarization, no Gatekeeper warning on download).
       - name: Notarize & staple
-        if: steps.ver.outputs.release == 'true'
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
@@ -150,16 +160,18 @@ jobs:
           xcrun stapler validate "$DMG"
 
       # ---- publish the GitHub Release ----------------------------------------
+      # create-or-update: a fresh push creates the release; a manual re-run
+      # (workflow_dispatch) on an existing tag just re-uploads the DMG.
       - name: Publish release
-        if: steps.ver.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.ver.outputs.tag }}" "$DMG" \
-            --title "${{ steps.ver.outputs.tag }}" \
-            --generate-notes \
-            --latest
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$DMG" --clobber
+          else
+            gh release create "$TAG" "$DMG" --title "$TAG" --generate-notes --latest
+          fi
           {
-            echo "### Quill ${{ steps.ver.outputs.tag }} released ✅"
+            echo "### Quill $TAG released ✅"
             echo "Download: ${{ github.server_url }}/${{ github.repository }}/releases/latest"
           } >> "$GITHUB_STEP_SUMMARY"
