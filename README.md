@@ -8,48 +8,38 @@
   A minimalist macOS menu-bar grammar &amp; typo fixer powered by a <strong>local</strong> LLM.
 </p>
 
-Press a global hotkey → Quill copies the selected text, fixes it with a local Gemma
-model running **in-process** via llama.cpp (no server, no network, nothing leaves your
-machine), and pastes the result back in place.
+Press a global hotkey → Quill copies the selected text, fixes its spelling, grammar, and
+capitalization with a local Gemma model, and pastes the result back in place.
+
+**Nothing leaves your machine.** The model runs in-process via llama.cpp — no server, no
+subprocess, no network. Your text is never uploaded anywhere.
 
 ## Highlights
 
-- **Fully local & private** — inference runs in-process via the llama.cpp C API; no
-  subprocess, no server, no network.
-- **Self-contained** — the app embeds llama.cpp; no Homebrew/llama install needed at runtime.
-- **Menu-bar only** — `LSUIElement`, no Dock icon. Classic AppKit (`NSStatusItem`); Settings
-  and History are SwiftUI in `NSWindow`s.
-- **Global hotkey** via [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts);
-  synthetic-clipboard flow (⌘C → fix → ⌘V → restore) works almost anywhere.
-- **Model:** `ggml-org/gemma-4-E2B-it-GGUF`, loaded once on demand and kept resident.
+- **Fully local & private** — inference runs in-process; no network, ever.
+- **Self-contained** — the app bundles everything it needs; nothing else to install.
+- **Menu-bar only** — no Dock icon, stays out of your way.
+- **Works almost anywhere** — copies, fixes, and pastes through the normal clipboard, so it
+  fixes text in nearly any app.
 
-## Develop
+## Install & use
 
-Needs full Xcode, plus `cmake`, `xcodegen`, and `llama.cpp` (`brew install cmake xcodegen llama.cpp`).
+1. Download the latest `Quill.dmg` from [Releases](../../releases) and drag Quill to Applications.
+2. Launch it — a ✏️ icon appears in the menu bar.
+3. Click the icon → **Load model**. The Gemma weights download automatically the first time
+   (a one-time download); after that the model loads in a few seconds.
+4. Open **Settings…** and pick a global hotkey.
+5. Select text in any app and press your hotkey — Quill replaces it with the corrected version.
 
-```bash
-# One-time: build the embedded llama framework, and fetch the model into the HF cache
-./scripts/build-xcframework.sh
-llama-cli -hf ggml-org/gemma-4-E2B-it-GGUF
+On first use, macOS asks for **Accessibility** permission (needed to simulate ⌘C/⌘V) — grant it,
+then press the hotkey again.
 
-# Build & run (→ ./Quill.app)
-./build.sh && open Quill.app
-```
+Tune the correction style anytime in **Settings → Additional instructions** (e.g. "use British
+spelling", "keep it casual"). **History** shows every before/after fix.
 
-On first hotkey use, grant **Accessibility** when prompted (needed for the synthetic ⌘C/⌘V).
-Then: menu-bar item → **Load model** → set a hotkey in **Settings…** → select text → press it.
+> Password and other secure-input fields block simulated keystrokes, so Quill can't fix text there.
 
-Iterate on the prompt/inference without a full build: `./scripts/test-prompt.sh`.
+## Development
 
-## How it fits together
-
-- **`project.yml` → XcodeGen → `Quill.xcodeproj`** (gitignored, disposable — edit `project.yml`).
-- **`Frameworks/llama.xcframework`** is embedded (Embed & Sign), so `Quill.app` is self-contained.
-  It's a one-time build artifact, gitignored; `build.sh` errors if it's missing. Pinned to llama.cpp
-  `b9290` (the C API `LlamaContext.swift` targets).
-- See `CLAUDE.md` for the non-obvious gotchas (signing/TCC, the prompt design, build internals).
-
-## Notes
-
-- The exit-time `SIGABRT` from ggml/Metal static teardown is benign (only at quit).
-- Password / secure-input fields swallow synthetic keystrokes — expected limitation.
+Building from source, the architecture, and the non-obvious gotchas all live in
+[`AGENTS.md`](AGENTS.md).
