@@ -166,10 +166,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A stable-named copy so README can link to a never-changing URL:
+          # /releases/latest/download/Quill.dmg always serves the newest release.
+          # cp is post-staple, so the embedded notarization ticket comes along.
+          cp "$DMG" Quill.dmg
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$DMG" --clobber
+            gh release upload "$TAG" "$DMG" Quill.dmg --clobber
           else
-            gh release create "$TAG" "$DMG" --title "$TAG" --generate-notes --latest
+            gh release create "$TAG" "$DMG" Quill.dmg --title "$TAG" --generate-notes --latest
           fi
           {
             echo "### Quill $TAG released ✅"
