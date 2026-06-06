@@ -14,14 +14,6 @@ capitalization with a local Gemma model, and pastes the result back in place.
 **Nothing leaves your machine.** The model runs in-process via llama.cpp — no server, no
 subprocess, no network. Your text is never uploaded anywhere.
 
-## Highlights
-
-- **Fully local & private** — inference runs in-process; no network, ever.
-- **Self-contained** — the app bundles everything it needs; nothing else to install.
-- **Menu-bar only** — no Dock icon, stays out of your way.
-- **Works almost anywhere** — copies, fixes, and pastes through the normal clipboard, so it
-  fixes text in nearly any app.
-
 ## Install & use
 
 1. Download the latest `Quill.dmg` from [Releases](../../releases) and drag Quill to Applications.
