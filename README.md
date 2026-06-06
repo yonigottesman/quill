@@ -13,26 +13,8 @@ capitalization with a local model — the `Q8_0` GGUF from
 [`ggml-org/gemma-4-E2B-it-GGUF`](https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF) — and
 pastes the result back in place.
 
-**Nothing leaves your machine.** The model runs in-process via llama.cpp — no server, no
-subprocess, no network. Your text is never uploaded anywhere.
-
-## Install & use
-
-1. Download the latest `Quill.dmg` from [Releases](../../releases) and drag Quill to Applications.
-2. Launch it — a ✏️ icon appears in the menu bar.
-3. Click the icon → **Load model**. The `gemma-4-E2B-it-Q8_0.gguf` weights (~4.6 GB) download
-   automatically the first time into the standard Hugging Face cache (a one-time download);
-   after that the model loads in a few seconds.
-4. Open **Settings…** and pick a global hotkey.
-5. Select text in any app and press your hotkey — Quill replaces it with the corrected version.
-
-On first use, macOS asks for **Accessibility** permission (needed to simulate ⌘C/⌘V) — grant it,
-then press the hotkey again.
-
-Tune the correction style anytime in **Settings → Additional instructions** (e.g. "use British
-spelling", "keep it casual"). **History** shows every before/after fix.
-
-> Password and other secure-input fields block simulated keystrokes, so Quill can't fix text there.
+[**Download Quill.dmg**](https://github.com/yonigottesman/quill/releases/latest/download/Quill.dmg)
+(always the latest release) and drag Quill to Applications.
 
 ## Development
 
