@@ -36,6 +36,25 @@ enum PromptBuilder {
         return prompt
     }
 
+    // MARK: - Behavior dials
+    //
+    // The thresholds that tune corrective aggressiveness vs. derail-safety. They
+    // were found empirically and are pinned by scripts/test-prompt.sh /
+    // compare-cli.sh — change them only with those harnesses.
+
+    /// Input at or below this word count gets no `Text to proofread:` anchor.
+    private static let anchorWordThreshold = 7
+    /// Inputs this short are treated as fragments for the explosion guard below.
+    private static let shortInputWords = 3
+    /// A short input whose output grows by at least this many words is a derail.
+    private static let explosionMargin = 6
+    /// Inputs this long collapsing to under half their words is a truncation derail.
+    private static let longInputWords = 6
+
+    private static func wordCount(_ text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
+    }
+
     /// The user turn: the text to proofread, under a passive data-label so the
     /// model treats it as content to fix rather than a message to answer.
     static func userPrompt(text: String) -> String {
@@ -45,8 +64,7 @@ enum PromptBuilder {
         // (realistic greetings/fragments get corrected, e.g. "hi my name is yoni"
         // → "Hi, my name is Yoni."); longer input → anchor. `finalize` cleans up
         // the rare short-input derail.
-        let words = text.split(whereSeparator: \.isWhitespace).count
-        return words <= 7 ? text : "Text to proofread:\n\(text)"
+        wordCount(text) <= anchorWordThreshold ? text : "Text to proofread:\n\(text)"
     }
 
     /// Assistant self-chatter the small E2B model emits when it derails on a
@@ -73,19 +91,19 @@ enum PromptBuilder {
         for marker in derailMarkers where out.contains(marker) && !src.contains(marker) {
             return original
         }
-        // General catch: a very short input (≤3 words) that explodes into a much
-        // longer output is the model inventing content, not proofreading. A real
+        // General catch: a very short input that explodes into a much longer
+        // output is the model inventing content, not proofreading. A real
         // correction of a short fragment stays short. Catches hallucinations that
         // dodge the marker list (e.g. "# Headign" → a fabricated paragraph).
-        let inWords = original.split(whereSeparator: \.isWhitespace).count
-        let outWords = output.split(whereSeparator: \.isWhitespace).count
-        if inWords <= 3 && outWords >= inWords + 6 {
+        let inWords = wordCount(original)
+        let outWords = wordCount(output)
+        if inWords <= shortInputWords && outWords >= inWords + explosionMargin {
             return original
         }
         // A substantial input that collapses to a tiny output is a truncation /
         // identity derail (e.g. a paragraph → "The model"), never a correction —
         // proofreading keeps roughly the same length.
-        if inWords >= 6 && outWords * 2 < inWords {
+        if inWords >= longInputWords && outWords * 2 < inWords {
             return original
         }
         // Multi-line input flattened to a single line is structural destruction

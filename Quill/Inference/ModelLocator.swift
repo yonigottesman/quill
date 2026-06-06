@@ -6,8 +6,8 @@ enum ModelLocatorError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notFound(let path):
-            return "Couldn't find the Gemma GGUF under \(path).\n" +
-                   "Run `llama-cli -hf ggml-org/gemma-4-E2B-it-GGUF` once to download it."
+            return "Couldn't find the Gemma GGUF under \(path) after downloading. " +
+                   "Try unloading and loading again to re-download."
         }
     }
 }
@@ -44,11 +44,7 @@ enum ModelLocator {
             if let gguf = files.first(where: { $0.hasSuffix(".gguf") && !$0.hasPrefix("mmproj") }) {
                 let full = (dir as NSString).appendingPathComponent(gguf)
                 // HF snapshot entries are symlinks into ../blobs — resolve so llama.cpp opens the real file.
-                return (try? fm.destinationOfSymbolicLink(atPath: full))
-                    .map { resolved in
-                        resolved.hasPrefix("/") ? resolved
-                            : (dir as NSString).appendingPathComponent(resolved)
-                    } ?? full
+                return URL(fileURLWithPath: full).resolvingSymlinksInPath().path
             }
         }
         throw ModelLocatorError.notFound(snapshotsDir)

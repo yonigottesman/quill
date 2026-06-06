@@ -95,10 +95,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Creates a fixed-size window whose SwiftUI content fills the content area.
     /// Using an explicit contentRect + NSHostingView (not contentViewController +
     /// setContentSize) avoids the Form-collapses-to-a-bar sizing bug.
-    private func makeWindow(title: String, size: NSSize, content: some View) -> NSWindow {
+    private func makeWindow(title: String, size: NSSize, resizable: Bool = false,
+                            content: some View) -> NSWindow {
+        var styleMask: NSWindow.StyleMask = [.titled, .closable]
+        if resizable { styleMask.insert(.resizable) }
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.titled, .closable],
+            styleMask: styleMask,
             backing: .buffered, defer: false)
         window.title = title
         window.isReleasedWhenClosed = false
@@ -111,14 +114,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openHistory() {
         if historyWindow == nil {
-            let hosting = NSHostingController(rootView: HistoryView(store: appState.history))
-            let window = NSWindow(contentViewController: hosting)
-            window.title = "History"
-            window.styleMask = [.titled, .closable, .resizable]
-            window.isReleasedWhenClosed = false
-            window.setContentSize(NSSize(width: 460, height: 420))
-            window.center()
-            historyWindow = window
+            historyWindow = makeWindow(
+                title: "History",
+                size: NSSize(width: 460, height: 420),
+                resizable: true,
+                content: HistoryView(store: appState.history))
         }
         NSApp.activate(ignoringOtherApps: true)
         historyWindow?.makeKeyAndOrderFront(nil)

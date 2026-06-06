@@ -139,17 +139,16 @@ actor LlamaContext {
 
     /// Drops a leading thinking block and stray turn markers, then trims. gemma-4
     /// uses `<|turn>`/`<turn|>` turn markers and `<|channel>thought…<channel|>` for
-    /// thinking (not the classic `<end_of_turn>`/`<think>`); we strip all of them so
-    /// a stray marker never reaches the pasted output.
+    /// thinking; we strip those so a stray marker never reaches the pasted output.
+    /// The classic Gemma `<start_of_turn>`/`<end_of_turn>` markers aren't in this
+    /// vocab (see applyChatTemplate), so the model can't emit them — no point
+    /// guarding against them here.
     private func clean(_ text: String) -> String {
         var out = text
-        if let end = out.range(of: "</think>") {
-            out = String(out[end.upperBound...])
-        }
         if let end = out.range(of: "<channel|>") {
             out = String(out[end.upperBound...])
         }
-        for marker in ["<turn|>", "<|turn>", "<end_of_turn>", "<start_of_turn>"] {
+        for marker in ["<turn|>", "<|turn>"] {
             out = out.replacingOccurrences(of: marker, with: "")
         }
         return out.trimmingCharacters(in: .whitespacesAndNewlines)

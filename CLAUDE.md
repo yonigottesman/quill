@@ -47,15 +47,19 @@ Sign, found at runtime via `@executable_path/../Frameworks`) — no Homebrew dep
 
 ## Model
 
-`ModelLocator` resolves the GGUF from the **HF cache** (`gemma-4-E2B-it-*.gguf`, excluding `mmproj*`).
-The app does **not** download — missing model → `state = .failed` telling the user to run
-`llama-cli -hf ggml-org/gemma-4-E2B-it-GGUF`. Loaded on demand, stays resident; Unload frees it.
+The app **auto-downloads** the weights on first load: `ModelDownloader` (swift-huggingface) fetches
+them into the standard **HF cache**, then `ModelLocator` resolves the GGUF from that cache
+(`gemma-4-E2B-it-*.gguf`, excluding `mmproj*`). State walks `.notLoaded → .downloading(progress) →
+.loading → .loaded`. The cache is content-addressed, so a blob already there (e.g. from a prior
+`llama-cli -hf …`) is reused, not re-fetched. Loaded on demand, stays resident; Unload frees it.
 
 ## Prompt & inference
 
-`PromptBuilder` is **shared by the app and `test-prompt.sh`** so they can't drift. **Validate every
-prompt/guard change with `./scripts/test-prompt.sh`.** Sampling is **greedy** (deterministic — temperature
-was tried and was not the fix). The hard-won, non-obvious findings:
+`PromptBuilder` is **shared by the app and `test-prompt.sh`** so they can't drift. **After ANY change
+to the prompt, template, sampling, or inference path, always run BOTH harnesses:
+`./scripts/test-prompt.sh` (qualitative — eyeball the corrections) and `./scripts/compare-cli.sh`
+(asserts byte-identical output vs. the `llama cli` oracle, PASS/FAIL).** Sampling is **greedy**
+(deterministic — temperature was tried and was not the fix). The hard-won, non-obvious findings:
 
 - **This `gemma-4-E2B-it` has a real `system` role** (its template supports `system`/`developer`,
   thinking, tools — unlike classic Gemma 2/3). The instruction goes in the system turn, the user turn
@@ -87,10 +91,24 @@ was tried and was not the fix). The hard-won, non-obvious findings:
 - `test-prompt.sh` ends with `fflush(stdout); _exit(0)` — `_exit` skips the benign teardown SIGABRT
   but also skips stdio flush, so the `fflush` is required or you get no output.
 
-## App icon
+## Release / CI
 
-`scripts/make-icon.sh` → `Quill/Quill.icns` (committed; `CFBundleIconFile`). It's the Finder/Spotlight
-icon — the app is `LSUIElement`, no Dock icon. Re-run only to change it.
+`.github/workflows/release.yml` builds, signs, **notarizes & staples** the DMG on every push to
+`main` and publishes it as a GitHub Release.
+
+- **A release ships ONLY when you bump `MARKETING_VERSION` in `project.yml`.** The workflow tags the
+  release `v<MARKETING_VERSION>`; if that tag already exists the merge just builds as a CI check and
+  **skips the release**. So **when you make a change you want released, bump `MARKETING_VERSION`
+  before pushing** — otherwise the DMG won't publish.
+- CI builds **Release config with `ENABLE_HARDENED_RUNTIME=YES`** (notarization requires it) — unlike
+  the local `build.sh`, which is Debug + hardened-runtime off. If a change works locally but breaks
+  the notarized build, suspect hardened runtime.
+- The embedded `llama.xcframework` is **rebuilt from source in CI and cached**, keyed on
+  `scripts/build-xcframework.sh` (which pins `LLAMA_CPP_REF`). Editing that script busts the cache.
+- **Secrets** (same five as the ezdash repo: `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_API_KEY_P8`,
+  `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) can't be copied between repos — GitHub never reveals secret
+  values. Populate this repo's secrets with **`scripts/setup-ci-secrets.sh`** (exports the Developer
+  ID identity from the keychain + takes the App Store Connect `.p8`).
 
 ## Architecture gotchas
 
