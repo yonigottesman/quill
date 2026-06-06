@@ -124,6 +124,9 @@ jobs:
           ditto "$APP_PATH" "$staging/Quill.app"
           ln -s /Applications "$staging/Applications"
           hdiutil create -volname "Quill" -srcfolder "$staging" -ov -format UDZO "$dmg"
+          # Sign the disk image itself (then notarize + staple it below) so the
+          # DMG — not just the app inside — passes Gatekeeper with no prompt.
+          codesign --force --sign "Developer ID Application" --timestamp "$dmg"
           echo "DMG=$dmg" >> "$GITHUB_ENV"
 
       # ---- notarize the DMG with Apple, then staple the ticket ----------------
