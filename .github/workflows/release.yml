@@ -7,7 +7,7 @@ name: Build & release macOS DMG
 # the run is green). So: bump MARKETING_VERSION to ship, otherwise nothing builds.
 #
 # Secrets are the same five App Store Connect / Developer ID secrets used by the
-# ezdash repo; populate them in this repo with scripts/setup-ci-secrets.sh:
+# ezdash repo:
 #   CSC_LINK            base64 of the Developer ID Application .p12
 #   CSC_KEY_PASSWORD    password protecting that .p12
 #   APPLE_API_KEY_P8    base64 of the App Store Connect API key (.p8)

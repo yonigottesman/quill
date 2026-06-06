@@ -85,6 +85,44 @@ struct TestPrompt {
             TestCase("the file lives at /usr/local/bin/quill and teh script faild."),
             TestCase("email me at jon@example.com — i'll reespond asap."),
 
+            // --- short slack/chat: speed-typing typos, missing apostrophes, common grammar ---
+            //     (Quill's bread-and-butter: quick messages fired off fast. All single-line so they
+            //      stay on the "no anchor" side of the length dial and are safe for CLI alignment.)
+            TestCase("dont worry ill take care of it"),
+            TestCase("i cant make it today lets reschedule"),
+            TestCase("youre right i didnt notice that"),
+            TestCase("thats not what i ment but its fine"),
+            TestCase("wont be able to join im in a meeting"),
+            TestCase("can you snd me teh link adn ill review it"),
+            TestCase("i thnik we shoud merge this"),
+            TestCase("waht time is the meetign tonight"),
+            TestCase("yeah thats fine wiht me lets do it"),
+            TestCase("im on my way runing 5 min late"),
+            TestCase("did yuo see the mesage i sent you"),
+            TestCase("sounds good ill ping yuo wehn its done"),
+            TestCase("i should of tested it first"),                 // should of → should have
+            TestCase("this dont work on my machine"),                // dont → doesn't (3rd person)
+            TestCase("the tests was failing on ci"),                 // was → were; ci → CI
+            TestCase("thanks fir the hekp realy apreciate it"),      // fat-finger fir/hekp
+            TestCase("wprking on it now will updaet you soon"),      // adjacent-key wprking/updaet
+            TestCase("lmk wen your free to chat"),                   // your → you're
+            TestCase("hes alredy on it dont worry"),
+            TestCase("we shoud probly ship it tomorow"),
+            TestCase("i havent finished it yet sory"),
+            TestCase("are we still on for lunch tmrw"),              // tmrw → tomorrow
+            TestCase("no wories take you'r time"),                   // you'r → your
+            TestCase("i'll be their in 5"),                          // their → there
+            TestCase("lets sync up after lunch"),
+            TestCase("whos handling the deploy today"),
+            TestCase("pls reveiw when you get a sec"),
+            TestCase("i seen the email but havnt replyed"),          // seen → saw; havnt → haven't
+            TestCase("their is a few bugs left"),                    // their → there; is → are
+            TestCase("each of the files need review"),               // need → needs
+            TestCase("could of been worse"),                         // could of → could have
+            TestCase("your the best thanks again"),                 // your → you're
+            TestCase("its been a long day hows it going"),
+            TestCase("me and tom is working on it"),                 // subject case + agreement
+
             // --- with additional instructions (should be honored, content still preserved) ---
             TestCase("I love the color gray and my favorite flavor is vanilla.",
                      additional: "use British spelling"),
@@ -96,6 +134,24 @@ struct TestPrompt {
                      additional: "use American spelling and keep it casual"),
             TestCase("the meetign is at 2pm. bring the laptop. we will demo the prototype.",
                      additional: "start every fix with the word FIX"),
+
+            // --- more additional instructions: tone/format transforms layered on proofreading.
+            //     Each input carries real typos so the proofreading core still has work to do,
+            //     and the instruction tests that the system turn steers the output. NOTE: the
+            //     "shorter/concise" ones deliberately shrink text — watched against finalize's
+            //     collapse guard (a correct concise rewrite must not be reverted to the original).
+            TestCase("the meetign is at 2pm and i'll bring the laptop",
+                     additional: "dont capitalize"),
+            TestCase("i just wanted to quickly reach out and let you know the reprot will be a litle late",
+                     additional: "make it shorter and more clear and concise"),
+            TestCase("send me teh file now its urgrent",
+                     additional: "make it more polite"),
+            TestCase("hey can u fix this bug its totaly broken and im freaking out",
+                     additional: "make it sound more professional"),
+            TestCase("i'll be there when im done so dont wait up",
+                     additional: "expand all contractions"),
+            TestCase("pls reveiw the doc and snd me your feedbak by eod",
+                     additional: "make it more concise"),
         ]
 
         let path = try ModelLocator.resolveGGUF()
@@ -105,7 +161,7 @@ struct TestPrompt {
         for c in cases {
             let system = PromptBuilder.systemPrompt(additionalInstructions: c.additional)
             let raw = await ctx.generate(system: system, user: PromptBuilder.userPrompt(text: c.text))
-            let out = PromptBuilder.finalize(output: raw, original: c.text) // same fail-safe as the app
+            let out = PromptBuilder.finalize(output: raw, original: c.text, additionalInstructions: c.additional) // same fail-safe as the app
             print("────────────────────────────────────────")
             print("INPUT:      \(c.text)")
             if !c.additional.isEmpty { print("ADDITIONAL: \(c.additional)") }

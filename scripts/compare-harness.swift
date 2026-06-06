@@ -51,6 +51,42 @@ struct CompareHarness {
         "i went to the store. i bought milk, egss, and bred. then i drove home and relized i forgot the coffe.",
         "/* TODO: fix the of-by-one eror in the loop bellow */",
         "she said \"its fine\" but its not realy fine.",
+        // short slack/chat: speed-typing typos, missing apostrophes, common grammar.
+        // All single-line, so they exercise the no-anchor path (Quill's main use case).
+        "dont worry ill take care of it",
+        "i cant make it today lets reschedule",
+        "youre right i didnt notice that",
+        "thats not what i ment but its fine",
+        "wont be able to join im in a meeting",
+        "can you snd me teh link adn ill review it",
+        "i thnik we shoud merge this",
+        "waht time is the meetign tonight",
+        "yeah thats fine wiht me lets do it",
+        "im on my way runing 5 min late",
+        "did yuo see the mesage i sent you",
+        "sounds good ill ping yuo wehn its done",
+        "i should of tested it first",
+        "this dont work on my machine",
+        "the tests was failing on ci",
+        "thanks fir the hekp realy apreciate it",
+        "wprking on it now will updaet you soon",
+        "lmk wen your free to chat",
+        "hes alredy on it dont worry",
+        "we shoud probly ship it tomorow",
+        "i havent finished it yet sory",
+        "are we still on for lunch tmrw",
+        "no wories take you'r time",
+        "i'll be their in 5",
+        "lets sync up after lunch",
+        "whos handling the deploy today",
+        "pls reveiw when you get a sec",
+        "i seen the email but havnt replyed",
+        "their is a few bugs left",
+        "each of the files need review",
+        "could of been worse",
+        "your the best thanks again",
+        "its been a long day hows it going",
+        "me and tom is working on it",
     ]
 
     // Cases that also exercise the Settings "additional instructions" (changes the system turn).
@@ -59,6 +95,13 @@ struct CompareHarness {
         Case("This Sentence Has Wierd Capitalizaton and a typo.", additional: "make the whole output lowercase"),
         Case("hey, can u send me teh report when your free?", additional: "make it formal"),
         Case("the meetign is at 2pm. bring the laptop. we will demo the prototype.", additional: "start every fix with the word FIX"),
+        // More tone/format transforms layered on proofreading (steered via the system turn).
+        Case("the meetign is at 2pm and i'll bring the laptop", additional: "dont capitalize"),
+        Case("i just wanted to quickly reach out and let you know the reprot will be a litle late", additional: "make it shorter and more clear and concise"),
+        Case("send me teh file now its urgrent", additional: "make it more polite"),
+        Case("hey can u fix this bug its totaly broken and im freaking out", additional: "make it sound more professional"),
+        Case("i'll be there when im done so dont wait up", additional: "expand all contractions"),
+        Case("pls reveiw the doc and snd me your feedbak by eod", additional: "make it more concise"),
     ]
 
     static var cases: [Case] { plain.map { Case($0) } + withAdditional }

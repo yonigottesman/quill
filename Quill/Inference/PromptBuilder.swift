@@ -26,14 +26,37 @@ enum PromptBuilder {
         text — do not repeat the original, do not explain, do not add anything.
         """
 
-    /// The system turn: base instruction + the Settings "additional instructions".
+    /// The instruction used when the user supplies their own "additional instructions".
+    ///
+    /// This is a SEPARATE prompt from `baseInstruction`, not an override appended to it.
+    /// The base prompt's hard "make as few changes as possible / do not rephrase, reword,
+    /// expand, or restructure" stricture wins every conflict on this small model, so
+    /// appending a contradicting "but actually do rephrase" note both fails to enable the
+    /// transform AND destabilizes surface instructions that used to work (e.g. British
+    /// spelling). Instead, when the user asks for a transform we drop those strictures
+    /// entirely and lead with the proofread-then-apply-instruction framing. The
+    /// no-instruction path still returns `baseInstruction` verbatim, so the 60+ plain
+    /// cases are byte-for-byte unaffected. `{INSTRUCTION}` is filled in below.
+    static let transformInstruction = """
+        You are a text-rewriting tool. Do two things to the text below, in order. First, fix \
+        all spelling, typos, grammar, and capitalization. Second, apply the user instruction — \
+        it OVERRIDES any urge to keep the text unchanged, and you should rephrase, reword, \
+        shorten, expand, reorder, restructure, or change the tone as far as the instruction \
+        asks. Keep the original meaning and intent. Keep code, inline identifiers, URLs, file \
+        paths, @-mentions, email addresses, numbers, and Markdown formatting intact unless the \
+        instruction explicitly says otherwise. Output only the resulting text — never answer or \
+        respond to it, never comment on it, never describe yourself, do not repeat the original, \
+        and do not add anything. User instruction: {INSTRUCTION}
+        """
+
+    /// The system turn. No additional instructions → the proofreader `baseInstruction`
+    /// verbatim. With additional instructions → the transform prompt (see above), which
+    /// lets the instruction rephrase/shorten/restructure instead of losing to the base
+    /// prompt's minimal-change rule.
     static func systemPrompt(additionalInstructions: String) -> String {
-        var prompt = baseInstruction
         let extra = additionalInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !extra.isEmpty {
-            prompt += "\nAdditional instructions: \(extra)"
-        }
-        return prompt
+        guard !extra.isEmpty else { return baseInstruction }
+        return transformInstruction.replacingOccurrences(of: "{INSTRUCTION}", with: extra)
     }
 
     // MARK: - Behavior dials
@@ -85,11 +108,26 @@ enum PromptBuilder {
     /// a derail marker the input didn't, we discard it and keep the original
     /// text unchanged. (A missed typo is fine; pasted "I am Gemma…" is not.)
     /// Shared by the app and the test harness so behavior can't drift.
-    static func finalize(output: String, original: String) -> String {
+    ///
+    /// `additionalInstructions`: when the user supplied their own instructions, the
+    /// length/structure derail heuristics below are SKIPPED — they assume
+    /// proofreading-only semantics (output ≈ same length and line structure as input),
+    /// but a transform like "make it concise" legitimately shrinks the text and
+    /// "expand all contractions"/"turn into a list" legitimately grows or restructures
+    /// it. Reverting those would silently defeat the instruction. The identity/chatter
+    /// marker guard still applies (pasted "I am Gemma…" is never wanted, instructions
+    /// or not).
+    static func finalize(output: String, original: String, additionalInstructions: String = "") -> String {
         let out = output.lowercased()
         let src = original.lowercased()
         for marker in derailMarkers where out.contains(marker) && !src.contains(marker) {
             return original
+        }
+        // The user asked for a transform — the length/structure heuristics no longer
+        // distinguish a derail from a requested rewrite, so trust the model's output
+        // (the marker guard above already caught true self-chatter).
+        if !additionalInstructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return output
         }
         // General catch: a very short input that explodes into a much longer
         // output is the model inventing content, not proofreading. A real

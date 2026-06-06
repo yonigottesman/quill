@@ -71,7 +71,7 @@ final class InferenceService: ObservableObject {
         guard let llama, state == .loaded else { return nil }
         let system = PromptBuilder.systemPrompt(additionalInstructions: additionalInstructions)
         let raw = await llama.generate(system: system, user: PromptBuilder.userPrompt(text: text))
-        let result = PromptBuilder.finalize(output: raw, original: text)
+        let result = PromptBuilder.finalize(output: raw, original: text, additionalInstructions: additionalInstructions)
         return result.isEmpty ? nil : result
     }
 }
