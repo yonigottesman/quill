@@ -119,13 +119,18 @@ correct for an explicit check).
   it** — the release job prepends an `<item>` (pointing at the GitHub release-asset DMG, with the
   EdDSA sig) and pushes it back to `main` with a `[skip ci]` commit. Never hand-edit it. The push can't
   loop: the `gate` job skips the build once `v<version>` exists.
+- **Sparkle's embedded helpers must be re-signed for notarization** — this broke the first 0.1.3 build.
+  Sparkle.framework bundles `Autoupdate`, `Updater.app`, and `Downloader.xpc`/`Installer.xpc`; xcodebuild's
+  embedded signing gives them hardened runtime but **not a secure timestamp**, which the notary requires on
+  every nested executable (status `Invalid`). The **"Harden Sparkle helpers"** step in `release.yml` re-signs
+  them inside-out (`Versions/B/...`) with `--options runtime --timestamp` before the DMG is built. The
+  notarize step dumps `notarytool log` on any non-`Accepted` status — read it first if this recurs. (Library
+  validation was *not* the problem; SPM re-signs the framework with our Team ID, so no entitlements file is
+  needed. If a future failure is genuinely library-validation, the fallback is `Quill.entitlements` with
+  `com.apple.security.cs.disable-library-validation`.)
 - **Sparkle requires HTTPS** feeds/downloads (ATS also blocks plain `http://localhost`), so there's no
   clean local live-update test — the production path is all HTTPS. Validate end-to-end via a
-  `workflow_dispatch` CI dry-run (real notarized + EdDSA-signed DMG + committed appcast), which also
-  exercises the one thing local Debug can't: hardened-runtime signing of Sparkle's embedded XPC services
-  (`Downloader.xpc`/`Installer.xpc`). SPM re-signs them with our Team ID, so no entitlements change has
-  been needed; if a notarized build ever fails to load them (library-validation error), add a minimal
-  `Quill.entitlements` with `com.apple.security.cs.disable-library-validation`.
+  `workflow_dispatch` CI dry-run (real notarized + EdDSA-signed DMG + committed appcast).
 
 ## Release / CI
 
