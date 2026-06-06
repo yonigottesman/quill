@@ -26,7 +26,7 @@ settings:
     ARCHS: arm64
     ONLY_ACTIVE_ARCH: YES
     SWIFT_VERSION: "5.0"          # Swift 5 language mode for a friction-free first build; tighten to 6 later
-    MARKETING_VERSION: "0.1.5"
+    MARKETING_VERSION: "0.1.6"
     # Placeholder build number for local builds. CI injects a real monotonic value
     # (git rev-list --count HEAD) so Sparkle's CFBundleVersion comparison can detect
     # newer releases — see .github/workflows/release.yml.
