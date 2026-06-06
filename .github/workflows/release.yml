@@ -100,11 +100,18 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM=29HD5Q85D4 \
             ENABLE_HARDENED_RUNTIME=YES \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             build 2>&1 | grep -E "BUILD (SUCCEEDED|FAILED)|error:" || true
           app="build/Build/Products/Release/Quill.app"
           [ -d "$app" ] || { echo "Build failed — no app produced." >&2; exit 1; }
           codesign --verify --strict --verbose=2 "$app"
+          # Notarization rejects get-task-allow (the debug entitlement xcodebuild
+          # injects into `build` output); fail loudly here if it slipped through.
+          if codesign -d --entitlements - --xml "$app" 2>/dev/null | grep -q 'get-task-allow'; then
+            echo "error: get-task-allow still present — notarization would reject this." >&2
+            exit 1
+          fi
           echo "APP_PATH=$app" >> "$GITHUB_ENV"
 
       # ---- package the DMG ----------------------------------------------------

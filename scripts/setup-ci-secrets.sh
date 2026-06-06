@@ -20,21 +20,29 @@ echo "Setting CI secrets on $REPO"
 echo
 
 # --- Developer ID cert -> CSC_LINK / CSC_KEY_PASSWORD -----------------------
-# Export the identity (cert + private key) to a temp .p12 protected by a random
-# password. macOS will pop a keychain-access prompt — approve it. `security
-# export` has no per-identity filter, so this exports every code-signing identity
-# in the keychain into the .p12; that's fine — xcodebuild selects the right one
-# by name ("Developer ID Application") at sign time.
+# `security export -t identities` grabs EVERY code-signing identity at once, so a
+# single non-exportable key in the keychain (e.g. a Secure-Enclave / Xcode-managed
+# one) fails the whole batch with "contents cannot be retrieved". There's no
+# per-identity filter on the CLI, so export just the Developer ID identity via
+# Keychain Access (GUI), then point this script at the resulting .p12.
 security find-identity -v -p codesigning | grep -qF "$IDENTITY" \
   || { echo "error: '$IDENTITY' not found in your keychain" >&2; exit 1; }
-p12="$(mktemp -t quill-cert).p12"
-p12_pwd="$(uuidgen)"
-echo "Exporting code-signing identities from the login keychain (approve the keychain prompt)…"
-security export -t identities -f pkcs12 -P "$p12_pwd" -o "$p12"
+cat <<EOF
+Export the signing identity to a .p12 with Keychain Access:
+  1. Keychain Access opens now → left sidebar 'login', Category 'My Certificates'.
+  2. Find:  $IDENTITY
+  3. Right-click it → Export "$IDENTITY"… → File Format: Personal Information Exchange (.p12)
+  4. Save it, and set a password (you'll paste that same password below).
+EOF
+open -a "Keychain Access" 2>/dev/null || true
+echo
+read -r -p  "Path to the exported .p12: " p12_path
+p12_path="${p12_path/#\~/$HOME}"
+[ -f "$p12_path" ] || { echo "error: no file at $p12_path" >&2; exit 1; }
+read -r -s -p "The .p12 password you just set: " p12_pwd; echo
 
-gh secret set CSC_LINK         --repo "$REPO" < <(base64 < "$p12")
+gh secret set CSC_LINK         --repo "$REPO" < <(base64 < "$p12_path")
 gh secret set CSC_KEY_PASSWORD --repo "$REPO" --body "$p12_pwd"
-rm -f "$p12"
 echo "  ✓ CSC_LINK, CSC_KEY_PASSWORD"
 echo
 
