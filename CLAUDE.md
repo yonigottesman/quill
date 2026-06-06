@@ -101,6 +101,9 @@ to the prompt, template, sampling, or inference path, always run BOTH harnesses:
   if the tag already exists the build is **skipped entirely** (no macOS build runs; the run is green).
   So **when you make a change you want released, bump `MARKETING_VERSION` before pushing** — otherwise
   nothing builds. (`workflow_dispatch` forces a build regardless, re-uploading the DMG onto the tag.)
+- **ALWAYS ask the user whether to bump `MARKETING_VERSION` before every commit.** It's easy to forget
+  and then the push builds nothing. So before committing any change, ask "bump the version?" and bump
+  it (patch unless told otherwise) if they say yes.
 - CI builds **Release config with `ENABLE_HARDENED_RUNTIME=YES`** (notarization requires it) — unlike
   the local `build.sh`, which is Debug + hardened-runtime off. If a change works locally but breaks
   the notarized build, suspect hardened runtime.

@@ -20,7 +20,7 @@ settings:
     ARCHS: arm64
     ONLY_ACTIVE_ARCH: YES
     SWIFT_VERSION: "5.0"          # Swift 5 language mode for a friction-free first build; tighten to 6 later
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "0.1.1"
     CURRENT_PROJECT_VERSION: "1"
     # Sign with the stable Developer ID identity (not ad-hoc) so macOS keeps the
     # Accessibility/TCC grant across rebuilds. Hardened runtime stays off until
