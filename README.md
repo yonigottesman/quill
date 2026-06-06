@@ -12,7 +12,11 @@ Press a global hotkey and Quill fixes the spelling, grammar, and capitalization 
 text with a local model — the `UD-Q4_K_XL` GGUF from
 [`unsloth/gemma-4-E2B-it-qat-GGUF`](https://huggingface.co/unsloth/gemma-4-E2B-it-qat-GGUF).
 
-[**Download Quill.dmg**](https://github.com/yonigottesman/quill/releases/latest/download/Quill.dmg)
+<p align="center">
+  <a href="https://github.com/yonigottesman/quill/releases/latest/download/Quill.dmg">
+    <img src="docs/download-badge.svg" alt="Download Quill" height="56">
+  </a>
+</p>
 
 ## Development
 
