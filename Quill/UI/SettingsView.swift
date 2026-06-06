@@ -3,11 +3,13 @@ import KeyboardShortcuts
 
 struct SettingsView: View {
     @ObservedObject var inference: InferenceService
+    @StateObject private var launchAtLogin = LaunchAtLogin()
 
     var body: some View {
         Form {
-            Section("Hotkey") {
-                KeyboardShortcuts.Recorder("Fix grammar:", name: .fixGrammar)
+            Section {
+                KeyboardShortcuts.Recorder("Fix grammar hotkey:", name: .fixGrammar)
+                Toggle("Launch at login", isOn: $launchAtLogin.isEnabled)
             }
 
             Section("Additional instructions") {
