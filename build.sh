@@ -4,6 +4,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# First build on a fresh machine also needs (one time):
+#   sudo xcodebuild -runFirstLaunch && sudo xcodebuild -license accept
+# -skipMacroValidation (below) is required for the KeyboardShortcuts SPM macro.
+
 # Stop any running instance first — macOS's `open` reactivates a running app
 # with the same bundle id instead of launching the new build.
 pkill -9 -f Quill 2>/dev/null || true
