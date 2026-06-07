@@ -19,7 +19,7 @@ text with a local model — the `UD-Q4_K_XL` GGUF from
 </p>
 
 <p align="center">
-  <video src="https://github.com/yonigottesman/quill/raw/main/images/recording_fix.mp4" width="640"></video>
+  <img src="images/recording_fix.gif" width="640" alt="Quill fixing selected text">
 </p>
 
 ## Installation
