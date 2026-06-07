@@ -15,6 +15,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
 
+    // The informational status line (e.g. "Downloading model… 42%"). Held so a
+    // download-progress tick can update its title in place instead of tearing
+    // down and rebuilding the whole menu — see handleStateChange.
+    private var statusMenuItem: NSMenuItem?
+    // Whether the currently-rendered menu was built for the `.downloading` case.
+    private var renderedDownloading = false
+    // Advances on each download tick to animate the status line's ellipsis.
+    private var downloadAnimTick = 0
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // menu-bar only, no Dock icon
 
@@ -30,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Keep the menu in sync with model load state.
         stateObserver = appState.inference.$state
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.rebuildMenu() }
+            .sink { [weak self] state in self?.handleStateChange(state) }
 
         // …and with update availability, so "Restart to update" appears once a
         // download is staged.
@@ -48,15 +57,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Menu
 
+    /// Routes a model-state change to either a cheap in-place title update or a
+    /// full structural rebuild. During a download `$state` fires ~10×/sec; doing a
+    /// `removeAllItems()` rebuild on every tick made an open menu flicker (and the
+    /// percentage unreadable). While we stay inside `.downloading`, only the status
+    /// line's title changes, so we mutate it directly — no flicker. Any case
+    /// transition still does a full rebuild.
+    private func handleStateChange(_ state: InferenceService.State) {
+        if case .downloading = state, renderedDownloading {
+            downloadAnimTick &+= 1
+            statusMenuItem?.title = downloadingTitle()
+            return
+        }
+        rebuildMenu()
+    }
+
+    /// Indeterminate label. swift-huggingface 0.9.0 doesn't deliver a usable
+    /// download fraction here — its per-task progress callback never fires, so the
+    /// value sits at 0 until the transfer finishes. Showing a percent would read as
+    /// frozen, so we spin a braille glyph to convey liveness instead. `$state` still
+    /// ticks ~10×/sec while downloading, which clocks the animation.
+    ///
+    /// The glyph is a single fixed-width character, so the title length never
+    /// changes — a varying-length label (e.g. cycling dots) makes the menu
+    /// re-measure and visibly jitter its width.
+    private func downloadingTitle() -> String {
+        let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        return "Downloading model \(frames[downloadAnimTick % frames.count])"
+    }
+
     private func rebuildMenu() {
         guard let menu = statusItem?.menu else { return }
         menu.removeAllItems()
+        statusMenuItem = nil
+        renderedDownloading = false
 
         switch appState.inference.state {
         case .notLoaded:
             add(menu, "Load model", #selector(loadModel))
-        case .downloading(let fraction):
-            add(menu, "Downloading model… \(Int(fraction * 100))%", nil)
+        case .downloading:
+            downloadAnimTick = 0
+            statusMenuItem = add(menu, downloadingTitle(), nil)
+            renderedDownloading = true
         case .loading:
             add(menu, "Loading model…", nil)
         case .loaded:
