@@ -18,6 +18,18 @@ text with a local model — the `UD-Q4_K_XL` GGUF from
   </a>
 </p>
 
+## Installation
+
+1. **Download and install the DMG.**
+
+2. **Set the hotkey.** Open the menu-bar icon → **Settings…**. Click the **Fix grammar hotkey**
+   recorder and press your key combo (e.g. ⌥⌘G). **This shortcut fixes the selected text.** On first use,
+   macOS asks for Accessibility permission. Grant it so Quill can read the selection and paste the fix.
+
+3. **Load the model.** Open the menu-bar icon → **Load model**. The first run downloads the GGUF
+   weights; later runs load from cache. When it reads **Model loaded ✓**, you're set. Select text in
+   any app and press your hotkey.
+
 ## Development
 
 Building from source, the architecture, and the non-obvious gotchas all live in
