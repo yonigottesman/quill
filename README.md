@@ -18,6 +18,10 @@ text with a local model — the `UD-Q4_K_XL` GGUF from
   </a>
 </p>
 
+<p align="center">
+  <video src="https://github.com/yonigottesman/quill/raw/main/images/recording_fix.mp4" width="640"></video>
+</p>
+
 ## Installation
 
 1. **Download and install the DMG.**
@@ -26,9 +30,13 @@ text with a local model — the `UD-Q4_K_XL` GGUF from
    recorder and press your key combo (e.g. ⌥⌘G). **This shortcut fixes the selected text.** On first use,
    macOS asks for Accessibility permission. Grant it so Quill can read the selection and paste the fix.
 
+   <p align="center"><img src="images/settings.png" width="440" alt="Quill settings window"></p>
+
 3. **Load the model.** Open the menu-bar icon → **Load model**. The first run downloads the GGUF
    weights; later runs load from cache. When it reads **Model loaded ✓**, you're set. Select text in
    any app and press your hotkey.
+
+   <p align="center"><img src="images/menu-bar.png" width="460" alt="Quill menu-bar menu"></p>
 
 ## Development
 
